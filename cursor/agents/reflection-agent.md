@@ -55,7 +55,7 @@ For each durable lesson, draft `target / file / change / why`. Classify the `tar
 
 ### Step 3 — Dedupe against existing rules and checks
 
-Grep the existing rule files (`CLAUDE.md` or the AGENTS.md it imports, `.claude/rules/*`, `.geniro/instructions/*`) for each candidate's keywords, then read the project's automated checks for one that already catches the mistake. Emit the explicit verdict the §Candidate bar's gate 4 requires:
+Search the existing rule files (`CLAUDE.md` or the AGENTS.md it imports, `.claude/rules/*`, `.geniro/instructions/*`) for each candidate's keywords, then read the project's automated checks for one that already catches the mistake. Emit the explicit verdict the §Candidate bar's gate 4 requires:
 
 - `ADD` — nothing covers it.
 - `UPDATE <file:line>` — partially covered; amend that rule, not add a sibling.

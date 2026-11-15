@@ -14,7 +14,7 @@ state.md `phase: ship`. Findings handoff to downstream skill OR user-handles —
 
 ### 3.0 Pre-gate — resolve open questions
 
-Fires FIRST in Phase 3 — before the findings summary, before the escalation AUQ — whenever state.md frontmatter `open_questions[]` carries any entry with `status: unresolved`. Open questions surface ambiguity downstream consumers (typically /geniro:implement) need resolved before applying a fix; resolving them here keeps the escalation AUQ choosing between known-shape targets.
+Fires FIRST in Phase 3 — before the findings summary, before the escalation AUQ — whenever state.md frontmatter `open_questions[]` carries any entry with `status: unresolved`. Open questions surface ambiguity downstream consumers (typically /geniro:implement) need resolved before applying a fix.
 
 **Procedure.** Run the canonical resolve-open-questions procedure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.5 — read and filter the unresolved set, render each entry message-first before its own lean `AskUserQuestion` (Always-WAIT), write the resolution back in place via `atomic_state_edit`, anchored on that entry's own lines, mirror it into the body `## Resolved Questions`, chain a second call rather than batching when one entry's options exceed the AUQ cap, and re-read the frontmatter afterwards to confirm every entry sits in `{resolved, wontfix}` before §3.1 runs. Its Wontfix path binds here unchanged. The entry fields and the `resolution` sub-fields are `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2.
 
@@ -23,7 +23,7 @@ Debug's instantiation of that procedure:
 - **Render source.** A debug entry carries `source` + `related_hypotheses` rather than `related_findings`, so the conversational lead states what the investigation hit and why the question stayed open. Preserve `id`, `source`, `question`, `related_hypotheses` across the resolution write.
 - **Resolution values.** `resolution.asked_in_phase: phase-3-pre-gate`, `resolution.resolved_by: debug`.
 - **Options** are synthesized from the entry's context:
-  - Stall categories (Phase 1 stall gate) → re-render the stall categories surfaced in Phase 1 (the set persisted in this entry's `options:` field) plus the "Abandon" option; do not introduce categories that were not originally surfaced.
+  - Stall categories (Phase 1 stall gate) → re-render the stall categories surfaced in Phase 1 (the set persisted in this entry's `options:` field) plus the "Abandon" option; do not introduce categories that were not originally surfaced. A category pick records a diagnosis ("cause not fully isolated; missing component: <category>") in `## Root Cause` and resolves the entry — investigation does not resume.
   - Cannot-verify deferred → render "Provide the missing data" / "Mark as accepted limitation" / "Escalate to /geniro:investigate".
 
 **No-skip rule.** This gate cannot be deferred to /geniro:implement or to the user's manual patch path: debug is the producer that surfaced the ambiguity, and a handoff carrying an unresolved question makes the consumer act on a question the user never answered. The exception: a §3.2 "Cannot verify — request specific data from user" pick is itself a resolution path — append a new `open_questions[]` entry (`id: q<N>`, `source: phase-3-cannot-verify`, `related_hypotheses` the unverified IDs, `status: unresolved`; `question`, `context` and `options` from the missing-data prompt, the failed probe and the follow-up question's own set; `evidence` the probe's captured artifact when there is one), shaped per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2 `open_questions`, and re-enter this gate when the data arrives.
@@ -54,9 +54,9 @@ Output the markdown block directly in chat AND write the same content (with full
 
 **In one sentence:** [what was wrong and what fixing it takes — one plain sentence]
 
-**Source branch:** [state.md frontmatter `branch:` — the Phase 0-recorded workspace, not a live `git branch --show-current`]
+**Source branch:** [state.md frontmatter `branch:`]
 
-**Source worktree:** [state.md frontmatter `worktree:` — the Phase 0-recorded workspace, not a live `git rev-parse --show-toplevel`]
+**Source worktree:** [state.md frontmatter `worktree:`]
 
 **Why escalating to <target>:** [one sentence — which target, plus the fix's blast radius: how many files it touches and whether it changes interfaces, architecture, or auth/permissions; user makes the final routing choice in the escalation question (§3.2)]
 
@@ -104,7 +104,7 @@ Do NOT auto-invoke the next skill — surface the suggestion only.
 
 ### 3.3 Emit learnings
 
-Fire the `diagnosis` emit below once per run, after §3.1 persists the handoff and before §3.2's question — a re-entry through §3.2 after a "Cannot verify" pick does not emit again. An emit left trailing after the answer is delivered is the documented drop vector that kept L2 sparse (confirmed root causes recorded nothing); firing ahead of the question also keeps the record independent of the pick. The echo and ordering rules bind here: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract".
+Fire the `diagnosis` emit below once per run, after §3.1 persists the handoff and before §3.2's question — a re-entry through §3.2 after a "Cannot verify" pick does not emit again. Firing ahead of the question keeps the record independent of the pick. The echo and ordering rules bind here: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract".
 
 **`diagnosis`** (fires ahead of the §3.2 question, on a confirmed root cause) — every confirmed root cause emits one entry with summary, tags (inferred from affected-files + hypothesis category), scope (project-relative path glob), and required `ext.{symptom, root_cause, fix}` per typed-extension table. Default trust `verified`. Canonical call shape (single JSON object on stdin — a YAML payload exits 64) in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §9. After a successful emit, echo `Recorded learning: <summary>` (the helper writes silently). The other two types fire earlier: `discarded_hypothesis` per rejection in §1.5, `retry_failure_sequence` at Phase 2 exit in §2.5.
 
@@ -112,7 +112,7 @@ Fire the `diagnosis` emit below once per run, after §3.1 persists the handoff a
 
 After Phase 3 completes (escalated, accepted, or user-handles):
 
-- **Scientific-method mode only:** `rm -rf .geniro/state/debug/<slug>/` for the current branch's slug only, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — the whole slug dir, so any experiment artifact written under it (§2.3 permits scratch there) goes with `state.md`; nothing there is read after the run, and the migration sweep does not scan `.geniro/state/`. Its useful content is already saved (root cause, repro including `original_repro`, hypotheses-tested-and-rejected, accepted limitations) via L2 emit + the persisted handoff at `.geniro/state/handoff/`. Do NOT delete sibling slugs from concurrent debug sessions on other branches.
+- **Scientific-method mode only:** `[ -n "$slug" ] && rm -rf ".geniro/state/debug/$slug/"` for the current branch's slug only, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — the whole slug dir, so any experiment artifact written under it (§2.3 permits scratch there) goes with `state.md`; nothing there is read after the run, and the migration sweep does not scan `.geniro/state/`. Its useful content is already saved (root cause, repro including `original_repro`, hypotheses-tested-and-rejected, accepted limitations) via L2 emit + the persisted handoff at `.geniro/state/handoff/`. Do NOT delete sibling slugs from concurrent debug sessions on other branches.
 - **Scientific-method mode only:** Remove debug scripts, scratch reproductions, the feedback-loop scratch signal, and ad-hoc curl/query files created during investigation. Grep the run's debug-log prefix (§1.5, e.g. `[DBG-a4f2]`) across the worktree recorded in state.md frontmatter `worktree:` — the Phase 0 pick, not necessarily the orchestrator's current cwd — and confirm zero hits before declaring cleanup done — this catches scratch files and test-side debug logging (e.g. inside the reproduction test); §3.1 already gated and resolved any non-test production-source hit before Cleanup ran, so none is expected here except on a path the user explicitly accepted keeping via §3.1's working-tree check. The reproduction test (authored at project's normal test path) STAYS on disk — it ships with the fix as the regression guard.
 - **Scientific-method mode only:** `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` must remain on disk as the escalation handoff channel, so do not delete it. Stays until next debug run overwrites it (single file per branch).
 - Kill any background processes started during investigation (dev servers, watchers, profilers).

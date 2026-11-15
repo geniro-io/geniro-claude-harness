@@ -167,7 +167,7 @@ For obvious bug fixes. The user already showed what's broken.
 
 ## Definition of done
 
-The run-completion checklist — the load-bearing exit gates that, if skipped, ship an unreviewed or unapproved change to the plugin — moved to `phase-4-6-implement-review.md` §Phase 6 Step 0, since it gates the Phase 6 report and that file is already Read at Phase 4 entry. Walk it there before the ship gate.
+The run-completion checklist — the load-bearing exit gates that, if skipped, ship an unreviewed or unapproved change to the plugin — moved to `phase-4-6-implement-review.md` §Phase 6 Step 5, since that file is already Read at Phase 4 entry. Walk it there after Step 4.
 
 ---
 

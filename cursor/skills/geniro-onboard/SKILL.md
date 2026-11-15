@@ -32,10 +32,8 @@ context: main
 
 - **No arguments** — full codebase scan; produces the 8-section `_CODEBASE_MAP.md` (default mode).
 - `--focus area1,area2,...` — scope-limiter. Scans all, but concentrates the map output on focus areas; non-focus areas get summary-level coverage.
-- `--depth N` — limit directory scanning to N levels deep. Useful for large monorepos where full traversal is too slow. Orthogonal to `--focus` (combine as needed).
+- `--depth N` — limit directory scanning to N levels deep. Combines with `--focus`.
 - `--cap N` — raise the default read budget to N (cap owned by §1.3 Step 2). Pass it up front; the budget is not raised mid-run.
-
-Combined examples: `--depth 2 --focus auth,api` (scan monorepo at depth 2, concentrate on auth+api).
 
 ## Outputs
 
@@ -53,7 +51,7 @@ Combined examples: `--depth 2 --focus auth,api` (scan monorepo at depth 2, conce
 
 When `--focus <area1,area2>` is provided: sections 3 / 4 / 6 / 7 concentrate detail on the focus areas; non-focus areas appear as one-line summary entries. Sections 1 / 2 / 5 / 8 cover the full scanned scope regardless of focus.
 
-A full worked example of the 8 sections is in `${CLAUDE_PLUGIN_ROOT}/skills/onboard/onboard-reference.md` §1; the template above is the operative spec.
+Worked example: `${CLAUDE_PLUGIN_ROOT}/skills/onboard/onboard-reference.md` §1.
 
 **Map quality bar** — two checks: an executable one (`wc -l` on the written file: under 1000 lines) and a rubric one (skimmable in 5 minutes — a reader gets oriented from headers and summaries alone, without reading every entry).
 
@@ -80,7 +78,7 @@ This skill adds one invariant:
 
 S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
-**Compaction.** The host re-attaches only the first portion of this file, so Phase 2's steps — composing and persisting `_CODEBASE_MAP.md`, the learning emit, cleanup — can arrive missing, with a truncation marker standing in for them (this skill has no separate phase files: both phases run from this one). Treat that marker as an instruction: in the turn you notice it, re-read this file before continuing. When you compose a compaction summary, record state — what ran, what remains, what the user decided — never a directive to yourself about stopping, confirming, or awaiting direction. A resumed session reads its summary as fact and will honour it over this file, so work still to do is recorded as work still to do, not as something to ask permission for.
+**Compaction.** The host re-attaches only the first portion of this file, so Phase 2's steps — composing and persisting `_CODEBASE_MAP.md`, the learning emit, cleanup — can arrive missing, with a truncation marker standing in for them (this skill has no separate phase files: both phases run from this one). Treat that marker as an instruction: re-read this file before continuing. When you compose a compaction summary, record state — what ran, what remains, what the user decided — never a directive to yourself about stopping, confirming, or awaiting direction. A resumed session reads its summary as fact and will honour it over this file, so work still to do is recorded as work still to do, not as something to ask permission for.
 
 **`## Tool log` section in state.md:** selective logging — log L3 writes (`_CODEBASE_MAP.md` write via `update-semantic`), L2 emits (`discovery` calls), and escalation entries. Routine Read / Bash skipped.
 
@@ -118,7 +116,7 @@ The load-bearing exit gates — skipping any makes the onboarding incomplete or 
 
 ## Phase 1 — Discover
 
-State.md `phase: discover`. Low cost — a repo-size scan + Glob + initial Read of project entry files. Exits to Phase 2 only when scan is bounded and repo-size cap is respected.
+State.md `phase: discover`. Low cost — a repo-size scan + directory listing + initial Read of project entry files. Exits to Phase 2 only when scan is bounded and repo-size cap is respected.
 
 ### 1.1 Step 0 — Mode detect
 
@@ -126,7 +124,7 @@ Parse `$ARGUMENTS` per §Arguments and echo the resolved mode. Transient — no 
 
 ### 1.2 Step 1 — Load custom instructions + past learnings
 
-On Phase 1 entry:
+On Phase 1 entry, when §State recovery found no state.md, create it via `atomic_state_write` per §State file schema (`phase: discover`). Then:
 
 1. **Load custom instructions** — Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: onboard`, `LOAD_TIER: pipeline`, `MODE: initial-load`.
 2. **Refresh project snapshot** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). If `_CODEBASE_MAP.md` already exists, the previous map is loaded as context (informs incremental update strategy). `CODEBASE_MAP.md` (without underscore) is also read once for compatibility.
@@ -139,7 +137,7 @@ Echo lines are mandatory per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-i
 
 **Procedure:**
 
-1. **Top-level discovery** — `Glob("*")` at repo root (`pwd` resolved via `git rev-parse --show-toplevel`). Read top-level structure markers: README.md, package.json / pyproject.toml / Cargo.toml / go.mod, .github/, src/.
+1. **Top-level discovery** — List the repo root (`pwd` resolved via `git rev-parse --show-toplevel`). Read top-level structure markers: README.md, package.json / pyproject.toml / Cargo.toml / go.mod, .github/, src/.
 2. **Estimate scan size** — count the repo's source files, honoring its ignore rules and any `--depth N`.
 3. **Apply the read budget** — 50 files by default, `--cap N` to raise it, `--focus` to narrow what gets sampled, `--depth N` to bound traversal — and proceed. Walk back a good stretch of the commit history (`git log --name-only`) to find the codebase's hot spots, and let those paths pull attention first; then sample files chosen for relevance (entry points, manifests, top-level modules), not directory order. Escalate only when the repo is large enough that a 50-file sample can no longer represent it (50,000+ files) and no `--focus` or `--cap` was given: auto-apply `--depth 2` so traversal doesn't stall, then fire the repo-size scan cap AUQ — header "Repo size":
 - **"Narrow to specific areas"** — user supplies focus areas (the `--focus <area>` flag); re-run scan with that filter.
@@ -212,7 +210,7 @@ Run this after EVERY terminal `phase:` write — `done`, `map-truncated`, `route
 State.md `phase: map` → `done` on the happy path. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract:
 
 ```bash
-rm -rf .geniro/state/onboard/<slug>/ 2>/dev/null || true
+[ -n "$slug" ] && rm -rf ".geniro/state/onboard/$slug/"
 ```
 
 **Persistent artifacts STAY:** `_CODEBASE_MAP.md` is T3 — never auto-deleted.
@@ -270,4 +268,4 @@ EOF
 
 ## State recovery
 
-On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules, Glob `.geniro/state/onboard/<slug>/state.md`. If present: source `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` and run `validate_state_file` on it — on failure fire the recovery AskQuestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` instead of consuming a corrupt file. On pass, run the helper §Consumer contract (Case A/B/C/D mismatch handling) — a same-cwd resume against a different branch's state file otherwise consumes it silently — then resume from the next incomplete phase.
+On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules, look for `.geniro/state/onboard/<slug>/state.md`. If present: source `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` and run `validate_state_file` on it — on failure fire the recovery AskQuestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` instead of consuming a corrupt file. On pass, run the helper §Consumer contract (Case A/B/C/D mismatch handling) — a same-cwd resume against a different branch's state file otherwise consumes it silently — then resume from the next incomplete phase.

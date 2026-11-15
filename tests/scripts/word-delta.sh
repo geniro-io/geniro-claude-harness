@@ -45,6 +45,13 @@ out="$(bash scripts/word-delta.sh "$BASE")"; rc=$?
 [ "$rc" -eq 0 ] && ! echo "$out" | grep -q 'lib/x.sh' \
   && pass "files outside the instruction scope are ignored" || fail "scope: rc=$rc out=$out"
 
+git checkout -q -- . 
+git mv skills/a/SKILL.md skills/a/RENAMED.md
+out="$(bash scripts/word-delta.sh "$BASE")"; rc=$?
+[ "$rc" -eq 0 ] && echo "$out" | grep -q '^ *+0  total' \
+  && pass "git mv rename nets 0, exit 0" || fail "rename: rc=$rc out=$out"
+git mv skills/a/RENAMED.md skills/a/SKILL.md
+
 out="$(bash scripts/word-delta.sh no-such-ref 2>&1)"; rc=$?
 [ "$rc" -eq 2 ] && pass "unresolvable base: exit 2" || fail "bad base: rc=$rc out=$out"
 

@@ -35,7 +35,7 @@ while IFS= read -r f; do
   printf '%+6d  %6d -> %6d  %s\n' "$d" "$before" "$after" "$f"
   total=$((total + d))
 done < <(
-  { git diff --name-only "$base" -- skills agents .claude/skills .claude/rules .claude/authoring CLAUDE.md
+  { git diff --no-renames --name-only "$base" -- skills agents .claude/skills .claude/rules .claude/authoring CLAUDE.md
     git ls-files --others --exclude-standard -- skills agents .claude/skills .claude/rules .claude/authoring
   } | grep -E '(\.md$|^CLAUDE\.md$)' | sort -u
 )

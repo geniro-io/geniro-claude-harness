@@ -29,7 +29,7 @@ argument-hint: "[optional: path to template directory]"
 
 **Runtime portability.** If Codex truncated this file, read it in full from its path first. `${CLAUDE_PLUGIN_ROOT}` is a placeholder Claude Code substitutes into file references, not a shell export — it reads empty in Bash under every host, so an empty probe proves nothing (`CLAUDECODE` marks Claude Code). Resolve the root from the first rung that holds: the ancestor of this file's real path (symlinks followed) containing `.claude-plugin/plugin.json`; a copy of the referenced file beside this one (the Cursor build); a plugin checkout in the workspace. The run's first Bash call prints this file's real directory and checks the rungs against it; echo that output verbatim before anything else (a resolved ladder is bookkeeping: add a degraded-run notice only for a rung that failed), then substitute the resolved root everywhere and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. A path the output does not show did not resolve. Before deciding a step cannot run here, read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` — it substitutes mechanisms, not steps, and routes a host with no one to ask to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/non-interactive-host.md`. **When no rung resolves, the files are missing but the contract is not:** name what is unavailable in your first message, run every phase and gate this skill declares, never let project rules stand in for its decision gates, and take no outward-facing action (ready PR, merge, force-push, protected-branch push, posted comment, tracker transition) without an explicit answer.
 
-**Cache rule.** CLAUDE.md loads on every run, so it is a cache. Cache what the agent cannot find by looking: the unwritten convention, the reason behind a choice, the gotcha no config confesses. Leave the one-file, one-command lookups to the environment, where they cannot go stale.
+**Cache rule.** CLAUDE.md loads on every run, so it is a cache. Cache what the agent cannot find by looking: the unwritten convention, the reason behind a choice, the gotcha no config confesses.
 
 **Read the phase's Steps on entry to that phase**, from `${CLAUDE_PLUGIN_ROOT}/skills/setup/`: `phase-0-preflight.md` · `phase-1-detect.md` · `phase-2-interview.md` · `phase-3-generate.md` · `phase-4-validate.md` · `phase-5-done.md`. That Read is the phase's first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold the gates and helper call sites, so work started before the Read runs outside them. The state file's `phase:` says where to resume, including after a compaction.
 
@@ -79,8 +79,8 @@ The load-bearing exit gates — skipping any makes the setup incomplete or unsaf
 
 | Phase | Allowed tools | Forbidden tools |
 |---|---|---|
-| `detect` | `Read`, `Bash` (read-only: `git`, `find`, `grep`, `cat`), `Glob`, `Grep`, `Agent` | `Write`, `Edit`, mutating `Bash`, `mcp__github__*` |
-| `interview` | `AskUserQuestion`, `Read` | `Write`, `Edit`, mutating `Bash` |
+| `detect` | `Read`, `Bash` (read-only: `git`, `find`, `grep`, `cat`; `atomic_state_*` on the state file), `Glob`, `Grep`, `Agent` | `Write`, `Edit`, other mutating `Bash`, `mcp__github__*` |
+| `interview` | `AskUserQuestion`, `Read`, `Bash` (`atomic_state_*` on the state file) | `Write`, `Edit`, other mutating `Bash` |
 | `generate` | `Read`, `Write`, `Edit`, `Bash` (mkdir, chmod, the §3.7 link script, the §3.8 `codex plugin` commands), `AskUserQuestion` | `mcp__github__*`, network egress (`curl`, `gh`, `git push`) |
 | `validate` | `Read`, `Bash` (read-only), `Agent` (verification subagent), `AskUserQuestion` | `Write`, `Edit` |
 | `done` (cleanup) | `Bash` (rm of state file), `AskUserQuestion` (the §5.2 map-the-codebase question), inline invocation of `/geniro:onboard` on that question's "Map codebase now" pick | everything else |
@@ -91,9 +91,9 @@ External sends are outside this skill's tool surface; users wire those via `/gen
 
 | Cause | Phase enum on exit | `## Termination reason` body section |
 |---|---|---|
-| User picked `cancel` at the §3.3 batch gate (write plan rejected) | `failed` | "user declined the §3.3 write plan — nothing generated; restart via re-run mode" |
+| User picked `cancel` at the §3.3 batch gate (write plan rejected) | `failed` | "user declined the file-write plan — nothing generated; run setup again to restart" |
 | Validation drift cleared after retry | `done` | not written (success path) |
-| Validation retry-cap escalation (§4.2) — "Abort setup" pick | `failed` | "user aborted at the validation escalation gate — remaining drift unresolved; restart via re-run mode" |
+| Validation retry-cap escalation (§4.2) — "Abort setup" pick | `failed` | "user aborted at the validation escalation gate — remaining drift unresolved; run setup again to restart" |
 | Validation retry-cap escalation (§4.2) — "Accept with warnings" pick | `done` | not written (success path; remaining DRIFT items noted in `## Open Questions`; state file deleted at Phase Done unless `mode == re-run`, per `phase-5-done.md` §5.3) |
 | Validation retry-cap escalation (§4.2) — "Start over" pick | `detect` (non-terminal — restarts Phase 1) | not written (run continues, not terminated) |
 | Bootstrap completed without drift | `done` | not written |

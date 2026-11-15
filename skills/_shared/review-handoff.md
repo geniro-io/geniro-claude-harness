@@ -199,7 +199,7 @@ open_questions: []                    # always present; may be empty []. Entry s
 **Phase:** <phase that ran the resolution AUQ>
 
 ## Termination reason
-<rendered per §9 — only on the aborted terminal; escalated surfaces its reason in ## Open Questions>
+<rendered per §9 — written on aborted, and on the done rows §9 gives a reason (round-continue, skip-action); escalated surfaces its reason in ## Open Questions>
 
 ## Persisted approvals
 <rendered from approvals[] frontmatter for user-readability>
@@ -208,7 +208,7 @@ EOF
 
 Each finding under `## Findings` renders as the multi-line per-finding body block below (NOT a one-liner) — the Phase 3 §3.3 KEEP/FILTER judgment preserves every reviewer-agent field; dropping fields to reach a one-liner is the failure mode the schema prevents.
 
-**Gate-input sections carry a sentinel when empty.** `## Deferred — sub-threshold` is the body section the §4.6 gate reads to decide whether to fire, and it is written by an earlier phase. Left bare, it cannot distinguish a phase that ran and found nothing from one that never ran — so the producer writes the `none — <step> ran …` line, and a consumer reading a bare section treats the gate's precondition as unknown, not clear. Contract and consumer obligations: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel.
+**Gate-input sections carry a sentinel when empty.** `## Deferred — sub-threshold` is the body section the §4.6 gate reads to decide whether to fire, and it is written by an earlier phase. Left bare, it cannot tell a phase that found nothing from one that never ran — so the producer writes the `none — <step> ran …` line, and a consumer reading a bare section treats the gate's precondition as unknown, not clear. Contract and consumer obligations: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel.
 
 **Write/rewrite discipline — schema comes from the template, never from memory.** Any full handoff write (Phase 5.1 first write) or rewrite (a later round updating the file, a re-author after compaction, any whole-file replacement) follows this procedure — re-authoring the handoff from memory drops the identity frontmatter, renames fields (`pr-head-sha` → `pr-head-oid`, breaking the §7.4 freshness check that then reads null), collapses the per-finding verification fields into a prose line (downstream parses it as legacy `m6-v1`), and drops snapshot fields the same run's Post drill needs:
 

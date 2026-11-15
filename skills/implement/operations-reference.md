@@ -83,7 +83,7 @@ subagent-model: <tier>    # set by --subagent-model (Phase 1 Step 1 parse); miss
 no-adversarial: true      # only when --no-adversarial was parsed; omit otherwise
 # Phase 3 Round 1 declare-before-fire list — resolved reviewer grid + custom:<slug> entries (phase-3-ship.md Step 1)
 spawn_dims_declared: []
-spawn_dims_count: <int>   # count of spawn_dims_declared[], written alongside it in the same atomic_state_write
+spawn_dims_count: <int>   # count of spawn_dims_declared[], set alongside it via `atomic_state_set_field`
 # Phase 2 decomposition declare-before-edit list — one short slug per authored todo (phase-2-implement.md Step 2)
 todos_declared: []
 todos_declared_count: <int>  # count of todos_declared[], set alongside it; Ship Step 2's check reads both
@@ -106,7 +106,7 @@ Which helper fires where. Step 0 workspace setup precedes every Phase 1 call in 
 |---|---|
 | **Phase 1 entry** | `load-custom-instructions` (`MODE: refresh`) → `load-semantic` → the backend read under a `## Memory Backend` block → the `knowledge-retrieval-agent` + `codebase-explorer-agent` spawn pair (knowledge slot gated by the Step 7 store-empty check), read back from `<task-dir>/.kr-out.md` and `<task-dir>/.ce-out.md` → `query-learnings` |
 | **Phase 2** | Entry: `load-custom-instructions` (`MODE: refresh`) — every entry, including a resume, since Phase 1's load does not carry forward. Its other loads are the per-Edit `.claude/rules/*.md` JIT reads (cache scope: Phase 2) |
-| **Phase 3** | Entry: `load-custom-instructions` (`MODE: refresh`) + `load-custom-reviewers` (round 1 only). Fix loop: `query-learnings` per round. Ship sub-step: `emit-learning`, `update-semantic`, and the `non-resumable-actions[]` write via `atomic_state_write` |
+| **Phase 3** | Entry: `load-custom-instructions` (`MODE: refresh`) + `load-custom-reviewers` (round 1 only). Fix loop: `query-learnings` per round. Ship sub-step: `emit-learning`, `update-semantic`, and the `non-resumable-actions[]` write via `atomic_state_append_list_item` |
 | **Any phase** | `resolve-conflicts` when the layers disagree — a soft conflict prints the notice and continues on the precedence-winning value; a hard conflict (a custom-instruction rule contradicts project reality) halts and asks. `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` |
 
 Two rules span all of these helpers — "Custom-instruction load is mandatory in full at every phase entry" and "A declared memory backend joins every learnings read", both in §Loop-invariant detail below.

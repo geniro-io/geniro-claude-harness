@@ -59,9 +59,9 @@ Locate 2-3 existing files that exemplify the pattern the spec is asking you to f
 
 ### Step 3 — Match `.claude/rules/` files
 
-If RULES_DIR does not exist (Glob returns nothing), emit `(no project-scoped rules detected)` in the corresponding output section and skip this step. Otherwise:
+If RULES_DIR does not exist (no files listed), emit `(no project-scoped rules detected)` in the corresponding output section and skip this step. Otherwise:
 
-Glob `<RULES_DIR>/**/*.md` (rules nest into subdirectories). For each rule file, Read ONLY the frontmatter. Parse the `paths:` field — a YAML list of glob patterns, which is what Claude Code scopes rules by. A repo ported from Cursor may instead carry `globs:` holding one comma-separated string; accept that spelling too. A rule file with neither field is unconditional and matches every file, so include it. Match the patterns against the file list from Steps 1-2, then output the path + a short summary of what the rule covers (parse from the first H1 or the first sentence after frontmatter).
+List `<RULES_DIR>/**/*.md` (rules nest into subdirectories). For each rule file, Read ONLY the frontmatter. Parse the `paths:` field — a YAML list of glob patterns, which is what Claude Code scopes rules by. A repo ported from Cursor may instead carry `globs:` holding one comma-separated string; accept that spelling too. A rule file with neither field is unconditional and matches every file, so include it. Match the patterns against the file list from Steps 1-2, then output the path + a short summary of what the rule covers (parse from the first H1 or the first sentence after frontmatter).
 
 ### Step 4 — Reuse inventory
 

@@ -14,4 +14,4 @@ Walk before the cleanup-and-commit step closes the run (Read at entry to Phase 5
 - [ ] Every approved finding assigned to exactly one fix agent, and every touched file to exactly one allowlist; unowned ones echoed (the finding-ownership invariant)
 - [ ] Every whole-surface deletion proposal put to its own gate with its explanation rendered, none carried by a blanket approval; the ones kept recorded as considered-and-kept (the no-blanket-deletion invariant)
 - [ ] Action gate fired; fixes (if approved) applied, battery re-run clean, findings re-checked
-- [ ] Slug-scoped state cleaned up; commit offered for the fixed files only
+- [ ] Slug-scoped state cleaned up; commit offered for the fixed files only (when any fix landed)

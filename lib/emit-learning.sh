@@ -232,18 +232,18 @@ emit_learning() {
       | tail -n 1)
 
     if [ -n "$last_match" ]; then
-      # Compare excluding ts, recurrence_count, and supersedes. All three are
+      # Compare excluding ts, recurrence_count, access_count, and supersedes. All four are
       # derived: ts is auto-injected per write, recurrence_count is a re-emit
       # counter that always differs between a prior entry (carried-forward
       # value) and a fresh-default new entry, and supersedes is auto-injected
       # only on the prior superseding entry — a fresh re-emit of that same
-      # content has no supersedes at compare time. Excluding all three makes an
+      # content has no supersedes at compare time. Excluding all four makes an
       # identical re-emit of a superseding entry compare equal (correct no-op:
       # no duplicate line, no false recurrence_count increment), while
       # genuinely different content still differs.
       local prior_norm new_norm
-      prior_norm=$(printf '%s' "$last_match" | jq -cS 'del(.ts, .recurrence_count, .supersedes)')
-      new_norm=$(printf '%s' "$rebuilt" | jq -cS 'del(.ts, .recurrence_count, .supersedes)')
+      prior_norm=$(printf '%s' "$last_match" | jq -cS 'del(.ts, .recurrence_count, .access_count, .supersedes)')
+      new_norm=$(printf '%s' "$rebuilt" | jq -cS 'del(.ts, .recurrence_count, .access_count, .supersedes)')
       if [ "$prior_norm" = "$new_norm" ]; then
         return 0
       fi

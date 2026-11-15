@@ -40,7 +40,7 @@ Anchoring bias is the main failure mode.
 
 The orchestrating skill passes you:
 
-1. **Dimension**: Which review dimension you own — one of bugs, security, architecture, tests, conventions, regressions, optimizations, design, pr-metadata, spec-compliance, or intent. Some dimensions fold in multiple concerns, each scoped by its own criteria input — `conventions` spans per-file style rubrics, repo-modal patterns, and authored-rule citations. The orchestrator's spawn prompt clarifies scope.
+1. **Dimension**: Which review dimension you own — one of bugs, security, architecture, tests, conventions, regressions, optimizations, design, pr-metadata, spec-compliance, intent, or refactor. Some dimensions fold in multiple concerns, each scoped by its own criteria input — `conventions` spans per-file style rubrics, repo-modal patterns, and authored-rule citations. The orchestrator's spawn prompt clarifies scope.
 2. **Criteria**: The path (or paths) of your dimension's criteria file — Step 1.
 3. **Changed files**: List of files to review, plus the diff — read each file's current content yourself in Step 2
 4. **Project context**: Brief description of the project's stack and conventions

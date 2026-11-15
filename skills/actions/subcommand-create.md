@@ -73,7 +73,7 @@ Read the template at `${CLAUDE_PLUGIN_ROOT}/skills/actions/skill-template.md`; w
 - Frontmatter `external-send: true` if Q3 = "Posts to an external system" or "Multiple side effects" with external.
 - Body sections follow the template exactly: `# {{name}}` (H1 title), `## When to use`, `## When NOT to use` (omit if the action has no skip conditions), `## Steps` (numbered), `## Output`, `## Test cases` (1–2 checks that confirm the run worked).
 
-**Show the drafted markdown to the user. Do NOT call Write yet.** Then AUQ:
+**Show the drafted markdown to the user. Write nothing yet.** Then AUQ:
 
 - **Question:** "Approve this draft?"
 - **Options:**

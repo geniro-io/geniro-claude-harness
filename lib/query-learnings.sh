@@ -361,15 +361,7 @@ record_access() {
   # age exceeds the TTL, then the mkdir below retries. The reclaim window is
   # lib/lock-reclaim.sh's — this reclaims the SAME lock as archive-stale.sh, so
   # the two cannot hold different values.
-  if [ -d "$lock" ]; then
-    local lock_mtime
-    lock_mtime=$(stat -c %Y "$lock" 2>/dev/null || stat -f %m "$lock" 2>/dev/null || echo 0)
-    local _ql_reclaim_secs
-    _ql_reclaim_secs="$(_geniro_lock_reclaim_secs)"
-    if [ $(( $(date +%s) - lock_mtime )) -gt "$_ql_reclaim_secs" ]; then
-      rmdir "$lock" 2>/dev/null
-    fi
-  fi
+  _geniro_reclaim_stale_lock "$lock" "$(_geniro_lock_reclaim_secs)" || true
   if ! mkdir "$lock" 2>/dev/null; then
     return 0
   fi
@@ -389,6 +381,8 @@ record_access() {
   # update-semantic.sh. Split by signal and exit explicitly — cleanup alone does
   # not terminate the process, so without the exit bash would resume mid-rewrite
   # with the lock already released for a concurrent writer.
+  local _ql_saved_traps
+  _ql_saved_traps="$(trap -p INT TERM 2>/dev/null || true)"
   trap 'rmdir "$lock" 2>/dev/null; rm -f "${tmp:-}" 2>/dev/null; trap - INT TERM; exit 130' INT
   trap 'rmdir "$lock" 2>/dev/null; rm -f "${tmp:-}" 2>/dev/null; trap - INT TERM; exit 143' TERM
 
@@ -413,6 +407,8 @@ record_access() {
   # armed, they would reference this invocation's $lock/$tmp, and the caller's
   # next Ctrl-C would run stale cleanup and exit outright.
   rmdir "$lock" 2>/dev/null
+  # Restore the caller's INT/TERM traps (reset to default only where it had none).
   trap - INT TERM
+  [ -z "$_ql_saved_traps" ] || eval "$_ql_saved_traps"
   return "$rc"
 }

@@ -483,6 +483,15 @@ done
 reset_spec; TIER='Trivial'; mk_spec tier-case.md
 expect_status tier-case.md effort_tier fail "tier enum membership is case-sensitive"
 
+reset_spec; TIER='"small" # picked'; mk_spec tier-quoted-comment.md
+expect_status tier-quoted-comment.md effort_tier pass "a double-quoted tier with a trailing comment is unquoted"
+
+reset_spec; TIER="'big'	# picked"; mk_spec tier-squoted-comment.md
+expect_status tier-squoted-comment.md effort_tier pass "a single-quoted tier with a tab-led trailing comment is unquoted"
+
+reset_spec; TIER='"huge" # picked'; mk_spec tier-quoted-bad.md
+expect_status tier-quoted-bad.md effort_tier fail "a quoted out-of-enum tier with a comment still fails"
+
 reset_spec; TIER='huge'; mk_spec tier-unknown.md
 expect_status tier-unknown.md effort_tier fail "a tier outside the enum"
 

@@ -55,9 +55,9 @@ The caller receives back:
 | ALTERNATIVES (§5) | no — the approach is not re-opened here | no — same |
 | RED-TEAM (§6) | yes | yes |
 | SYNTHESIZE (§7) | one judge: keep / keep-with-modifications / re-plan | one judge: clean / defects-found |
-| Verdict handling (§8) | fold keep-with-modifications fixes INTO the spec; verdict feeds the human approval gate | no rewrite except a user-elected fact correction (§8); fire an AskUserQuestion only when a claim is refuted or a blocking red-team risk exists |
+| Verdict handling (§8) | fold keep-with-modifications fixes INTO the spec; verdict feeds the human approval gate | no rewrite except a user-elected fact correction (§8); fire an AskUserQuestion only when a claim is refuted, clarified or unverified, or a blocking red-team risk exists |
 
-The asymmetry has one root cause: in plan mode the spec is a draft the calling skill owns and is about to harden before asking the human to approve it, so folding fixes in is correct. In implement mode the spec is the user's already-approved artifact and the durable file of an upstream producer — rewriting it would force a cross-producer schema lockstep and silently re-open a design decision the user already signed off on. Implement mode verifies FACTS and never re-opens the DESIGN.
+The asymmetry has one root cause: in plan mode the spec is an unapproved draft the calling skill owns, so folding fixes in is correct; in implement mode it is the user's approved artifact and an upstream producer's durable file, and a rewrite would silently re-open a signed-off design. Implement mode verifies FACTS, never the DESIGN.
 
 ## 3. Stage A — extract the cited-claim set
 
@@ -154,7 +154,7 @@ One judge reads the §4 verification results and the §6 red-team findings, and 
 
 **implement mode** — one of:
 - `clean` — every claim confirmed, no blocking red-team finding.
-- `defects-found` — ≥1 claim refuted OR a blocking red-team finding exists.
+- `defects-found` — ≥1 claim refuted, clarified or unverified, OR a blocking red-team finding exists.
 
 ## 8. Verdict handling per MODE
 
@@ -162,7 +162,7 @@ One judge reads the §4 verification results and the §6 red-team findings, and 
 
 **implement mode.** Do NOT rewrite the spec on your own initiative — it is the user's approved artifact, and an unasked rewrite re-opens a signed-off design and forces a cross-producer schema lockstep. Verify FACTS; never re-open the approved DESIGN DECISION.
 
-One carve-out, and only one: the user elects a fact correction at the `defects-found` question below. It is bounded to the refuted and clarified claims this pass produced — a citation that no longer resolves, a quantity that does not re-derive, a current-state assertion the code contradicts — and touches neither the approach, the scope, nor the step set. Apply it in place via `atomic_state_write`, then re-enter this helper with `SCOPE: changed-only` per §8.5: a corrected claim is new spec content no verifier has read. What stays forbidden is the silent rewrite — a correction nobody asked for, or one that changes what the spec DECIDED rather than what it ASSERTED.
+One carve-out, and only one: the user elects a fact correction at the `defects-found` question below. It is bounded to the refuted and clarified claims this pass produced — a citation that no longer resolves, a quantity that does not re-derive, a current-state assertion the code contradicts — and touches neither the approach, the scope, nor the step set. Apply it in place with one `atomic_state_edit` per corrected claim, then re-enter this helper with `SCOPE: changed-only` per §8.5: a corrected claim is new spec content no verifier has read. What stays forbidden is the silent rewrite — a correction nobody asked for, or one that changes what the spec DECIDED rather than what it ASSERTED.
 
 **Record every refuted claim in state.md, and keep recording them after this pass ends.** Not rewriting the spec is correct; leaving the refutation only in chat is not. Append one entry per refuted or clarified claim to the calling skill's state.md `## Spec Divergences` body section via `atomic_state_append_section --create`: the claim as the spec states it, what the code actually shows, and the evidence quote.
 

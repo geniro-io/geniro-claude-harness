@@ -4,7 +4,7 @@ Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Ph
 
 ## Phase 7: `validate` sub-command
 
-**Tool surface.** Allowed: `Read`, `Glob`, `Bash(grep -n, wc)`, `AskUserQuestion`. Forbidden: `Write`, `Edit`, `Agent`, `mcp__*`.
+**Tool surface.** Allowed: `Read`, `Glob`, `Bash(grep -n, wc, `validate_action_file`)`, `AskUserQuestion`. Forbidden: `Write`, `Edit`, `Agent`, `mcp__*`.
 
 ### Step 1 — Resolve scope
 

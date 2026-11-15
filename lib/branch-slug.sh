@@ -11,7 +11,8 @@
 #
 # Rules: lowercase -> collapse non-alphanumeric runs to a single dash ->
 # strip leading/trailing dashes -> truncate to 60 chars -> strip a dash the
-# truncation may have left at the boundary. This file is the only home of the
+# truncation may have left at the boundary; an empty result becomes
+# b-<first 12 hex of sha256(branch)>. This file is the only home of the
 # derivation: skills/_shared/within-skill-state-handoff.md §Slug rules sources it
 # rather than restating it, and the hook's inline fallback is pinned to it by
 # tests/memory/branch-slug.sh.
@@ -33,5 +34,14 @@ _geniro_branch_slug() {
   local slug
   slug="$(printf '%s' "$branch" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##' || true)"
   slug="${slug:0:60}"
-  printf '%s' "${slug%-}"
+  slug="${slug%-}"
+  if [ -z "$slug" ]; then
+    # No ASCII alphanumerics (`фикс`, `修复`, `_`): an empty slug would collapse
+    # every such branch onto one state path and make `rm -rf .../<skill>/<slug>`
+    # hit the skill dir. Deterministic hash fallback instead.
+    local h
+    h="$(printf '%s' "$branch" | { shasum -a 256 2>/dev/null || sha256sum 2>/dev/null || openssl dgst -sha256 2>/dev/null; } | sed -E 's#^.*= ##' | tr -cd '0-9a-f' | cut -c1-12 || true)"
+    slug="b-${h:-unknown}"
+  fi
+  printf '%s' "$slug"
 }

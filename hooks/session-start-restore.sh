@@ -103,6 +103,33 @@ if ! command -v _geniro_lock_reclaim_secs >/dev/null 2>&1; then
     printf '%s' "$secs"
   }
 fi
+if ! command -v _geniro_reclaim_stale_lock >/dev/null 2>&1; then
+  _geniro_reclaim_stale_lock() {
+    local p="${1:-}" secs="${2:-}" m dst
+    [ -n "$p" ] || return 1
+    [ -e "$p" ] || [ -L "$p" ] || return 0
+    case "$secs" in ''|*[!0-9]*) return 1 ;; esac
+    m=$(stat -c %Y "$p" 2>/dev/null || stat -f %m "$p" 2>/dev/null) || return 1
+    case "$m" in ''|*[!0-9]*) return 1 ;; esac
+    [ $(( $(date +%s) - m )) -gt "$secs" ] || return 1
+    dst="$p.stale.$$.$RANDOM"
+    if mv "$p" "$dst" 2>/dev/null; then
+      # A rival may have reclaimed and re-acquired between our age check and the
+      # rename, so what we moved can be a live fresh lock: put it back.
+      m=$(stat -c %Y "$dst" 2>/dev/null || stat -f %m "$dst" 2>/dev/null || echo 0)
+      if [ $(( $(date +%s) - m )) -le "$secs" ]; then
+        # Recreate (mkdir / hard link fail if a rival already holds it) rather than
+        # `mv` back, which would nest the copy inside a lock dir that now exists.
+        if [ -d "$dst" ]; then mkdir "$p" 2>/dev/null || true; else ln "$dst" "$p" 2>/dev/null || true; fi
+        rm -rf "$dst" 2>/dev/null
+        return 1
+      fi
+      rm -rf "$dst" 2>/dev/null
+      return 0
+    fi
+    [ ! -e "$p" ]
+  }
+fi
 
 # Branch -> slug derivation, single-sourced in lib/branch-slug.sh so this hook
 # always computes the same slug a producer's state-file path was derived from
@@ -124,7 +151,13 @@ if ! command -v _geniro_branch_slug >/dev/null 2>&1; then
     local s
     s="$(printf '%s' "$b" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##' || true)"
     s="${s:0:60}"
-    printf '%s' "${s%-}"
+    s="${s%-}"
+    if [ -z "$s" ]; then
+      local h
+      h="$(printf '%s' "$b" | { shasum -a 256 2>/dev/null || sha256sum 2>/dev/null || openssl dgst -sha256 2>/dev/null; } | sed -E 's#^.*= ##' | tr -cd '0-9a-f' | cut -c1-12 || true)"
+      s="b-${h:-unknown}"
+    fi
+    printf '%s' "$s"
   }
 fi
 
@@ -440,24 +473,6 @@ status=""
 recorded_branch=""
 non_resumable_count=0
 
-_fm_scalar() {
-  local file="$1" key="$2"
-  awk -v k="$key" '
-    NR == 1 && $0 != "---" { exit 0 }
-    NR == 1 { in_fm = 1; next }
-    in_fm && $0 == "---" { exit 0 }
-    in_fm && $0 ~ "^" k ":" {
-      sub("^" k ":[[:space:]]*", "")
-      gsub(/[[:space:]]+$/, "")
-      if ($0 ~ /^"[^"]*"$/ || $0 ~ /^\047[^\047]*\047$/) {
-        $0 = substr($0, 2, length($0) - 2)
-      }
-      print
-      exit
-    }
-  ' "$file" 2>/dev/null
-}
-
 # Count entries of a YAML block-list field. Returns 0 for absent, `[]`,
 # or unparseable. Counts `- ` entries indented under the parent key.
 # END block is the single print site — mid-stream conditions just set
@@ -709,10 +724,10 @@ _render_approvals_block() {
 }
 
 if [ -n "$state_file" ] && [ -f "$state_file" ]; then
-  active_skill="$(_fm_scalar "$state_file" producer)"
-  phase="$(_fm_scalar "$state_file" phase)"
-  status="$(_fm_scalar "$state_file" status)"
-  recorded_branch="$(_fm_scalar "$state_file" branch)"
+  active_skill="$(_fm_scalar_quick "$state_file" producer)"
+  phase="$(_fm_scalar_quick "$state_file" phase)"
+  status="$(_fm_scalar_quick "$state_file" status)"
+  recorded_branch="$(_fm_scalar_quick "$state_file" branch)"
   non_resumable_count="$(_fm_block_list_count "$state_file" non-resumable-actions)"
   [ -z "$non_resumable_count" ] && non_resumable_count=0
 fi
@@ -1050,15 +1065,8 @@ if [ -f "$_learnings_log" ]; then
     if [ -n "$_current_hash" ] && [ "$_current_hash" != "$_last_hash" ]; then
       # File changed since last archive — eligible to run.
       # Stale-lock cleanup (orphaned > 10 min from crashed process).
-      if [ -d "$_lock_dir" ]; then
-        _lock_mtime=$(stat -c %Y "$_lock_dir" 2>/dev/null || stat -f %m "$_lock_dir" 2>/dev/null || echo 0)
-        _lock_age=$(( $(date +%s) - _lock_mtime ))
-        # Reclaim window per lib/lock-reclaim.sh, resolved at the top of this hook.
-        _lock_reclaim_secs="$(_geniro_lock_reclaim_secs)"
-        if [ "$_lock_age" -gt "$_lock_reclaim_secs" ]; then
-          rmdir "$_lock_dir" 2>/dev/null
-        fi
-      fi
+      # Reclaim window per lib/lock-reclaim.sh, resolved at the top of this hook.
+      _geniro_reclaim_stale_lock "$_lock_dir" "$(_geniro_lock_reclaim_secs)" || true
 
       # Atomic lock acquisition. Failure = another tab is running it; skip.
       if mkdir "$_lock_dir" 2>/dev/null; then
@@ -1092,6 +1100,11 @@ if [ -f "$_learnings_log" ]; then
           _hash_tmp="${_hash_marker}.tmp.$$.${_hash_host//[^A-Za-z0-9.-]/_}"
           _geniro_sha256 "$_learnings_log" 2>/dev/null | cut -d' ' -f1 > "$_hash_tmp"
           mv -f "$_hash_tmp" "$_hash_marker" 2>/dev/null || rm -f "$_hash_tmp" 2>/dev/null
+        else
+          # rc>=2: surface the archiver's first stderr line instead of dropping it
+          # (a bad line otherwise disables auto-archive on every start, silently).
+          _archive_err=$(printf '%s\n' "$_archive_output" | sed -n '1p')
+          BLOCK5E="⚠️ Auto-archive failed (rc=$_archive_rc): ${_archive_err:-no output from lib/archive-stale.sh}"
         fi
 
         # Release lock, and drop the trap so a later EXIT does not rmdir a lock
@@ -1155,7 +1168,7 @@ if [ -f "$_learnings_log" ] && [ -s "$_learnings_log" ]; then
 
   if [ "$_coverage_enabled" = "true" ]; then
     _cov=$(jq -Rsr '
-      [splits("\n") | select(length > 0) | fromjson?
+      [split("\n")[] | select(length > 0) | fromjson?
        | select((.deprecated // false) == false)] as $live
       | ($live | length) as $total
       | ([$live[] | select((.trust // "inferred") == "verified")] | length) as $verified

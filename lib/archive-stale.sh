@@ -190,7 +190,7 @@ archive_stale_learnings() {
   # zero-live divide-by-zero.
   local coverage_line
   coverage_line=$(head -c "$orig_size" "$log" | jq -Rsr '
-        [splits("\n") | select(length > 0) | fromjson?
+        [split("\n")[] | select(length > 0) | fromjson?
          | select((.deprecated // false) == false)] as $live
         | ($live | length) as $total
         | ([$live[] | select((.trust // "inferred") == "verified")] | length) as $verified
@@ -318,15 +318,9 @@ if [ "$_as_direct" = "1" ]; then
   _as_lock_root="$(_geniro_repo_root)"
   _as_lock="$_as_lock_root/.geniro/knowledge/.archive-stale.lock"
   if [ -d "$_as_lock_root/.geniro/knowledge" ] && [ -z "${GENIRO_ARCHIVE_LOCK_HELD:-}" ]; then
-    if [ -d "$_as_lock" ]; then
-      _as_lock_mtime=$(stat -c %Y "$_as_lock" 2>/dev/null || stat -f %m "$_as_lock" 2>/dev/null || echo 0)
-      # The reclaim window is lib/lock-reclaim.sh's — archive-stale.sh and
-      # query-learnings.sh reclaim the SAME lock and cannot hold different values.
-      _as_reclaim_secs="$(_geniro_lock_reclaim_secs)"
-      if [ $(( $(date +%s) - _as_lock_mtime )) -gt "$_as_reclaim_secs" ]; then
-        rmdir "$_as_lock" 2>/dev/null
-      fi
-    fi
+    # The reclaim window is lib/lock-reclaim.sh's — archive-stale.sh and
+    # query-learnings.sh reclaim the SAME lock and cannot hold different values.
+    _geniro_reclaim_stale_lock "$_as_lock" "$(_geniro_lock_reclaim_secs)" || true
     if ! mkdir "$_as_lock" 2>/dev/null; then
       echo "archive-stale: another rewrite of learnings.jsonl is in progress (lock held: $_as_lock) — skipped. Re-run in a moment." >&2
       exit 3

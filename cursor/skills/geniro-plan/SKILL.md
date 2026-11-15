@@ -37,7 +37,7 @@ The HARD-GATE in `plan-loop.md` blocks any implementation invocation until Phase
 mode-detect → explore → [visual-companion: UI-conditional] → clarify → approaches → section-approve → write-spec → validate → spec-challenge → user-approve → handoff → done
 ```
 
-Any phase may branch to the `aborted` terminal on cancel; a Phase 7 validator hard-fail re-enters write-spec and a Phase 8 revision re-enters section-approve; visual-companion "Adjust the plan instead" re-enters explore; a Phase 7.5 `re-plan` verdict re-enters approaches, and a Phase 7.5 milestone re-open re-enters write-spec; after a fold-in or revision round the validator passes straight to user-approve, skipping Phase 7.5 (§7.4).
+Any phase may branch to the `aborted` terminal on cancel; a Phase 7 validator hard-fail re-enters write-spec and a Phase 8 revision re-enters section-approve; visual-companion "Adjust the plan instead" re-enters explore; a Phase 7.5 `re-plan` verdict re-enters approaches, Phase 4 with every approach verified blocking re-enters clarify (`phase: clarify`), and a Phase 7.5 milestone re-open re-enters write-spec; after a fold-in or revision round the validator passes straight to user-approve, skipping Phase 7.5 (§7.4).
 
 **Terminal states:** `done`, `aborted`. The SessionStart hook treats both as "planning complete or cancelled — no resume needed". Every transition into one first runs the transient cleanup (`clean_task_transients`, `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-9-handoff.md` §9.2) before the terminal `phase:` write.
 
@@ -170,7 +170,7 @@ Reads and `AskQuestion` are open in every phase; writes are limited to those lis
 
 ## Task execution entry
 
-0. **Check for existing state.md.** Glob `.geniro/planning/*/state.md` for a file matching the resolved task slug:
+0. **Check for existing state.md.** List `.geniro/planning/*/state.md` for a file matching the resolved task slug:
 - **No state.md** → fresh run. Proceed to Phase 0.
 - **state.md exists, phase in non-terminal set** → resume from `phase:` value, re-Reading the spine and that phase's steps file first (the Compaction paragraph above). The SessionStart hook re-injects task context, not the loop's steps.
 - **state.md exists, phase in terminal set** (`done` / `aborted`) → task complete. Surface terminal state to user; if $ARGUMENTS carries a new topic, derive a new slug, fresh run.

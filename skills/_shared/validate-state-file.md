@@ -14,7 +14,6 @@
 |---|---|
 | Skill resume after compaction (SessionStart hook re-enters task) | Verify state.md survived intact before continuing |
 | Task-dir handoff (`/geniro:plan` writes `spec.md`, `/geniro:implement` reads it) | Catch malformed handoff early — fail fast at consumer entry |
-| Optional sanity check after `atomic_state_write` | Belt-and-suspenders; not required (write helper guarantees atomicity) |
 
 Producers do NOT need to validate the file they just wrote — the write helper guarantees the bytes hit disk atomically and the producer controls the content.
 
@@ -77,8 +76,8 @@ The 7 steps validated, in order:
 When `validate_state_file` returns non-zero, the calling skill must open an `AskUserQuestion`:
 
 ```
-Q: state.md failed validation — <error from stderr>.
-   The file may be corrupt, partially written, or from an older plugin version.
+Q: The saved progress file for this task can't be used — <plain cause from the exit code: 2-5 incomplete or damaged; 6 saved by an older plugin version; 7 edited by hand since saving; 8 its working folder is gone; 9 unrecognized type>.
+   Technical detail: <raw stderr, verbatim>
 
 Options:
   - "Delete and restart"      — Drop the state file; skill re-runs from spec.

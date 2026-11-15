@@ -401,6 +401,22 @@ else
   fail "record_access leaked a trap into the caller's shell — INT: '$int_trap' TERM: '$term_trap'"
 fi
 
+# The caller's own INT/TERM traps must survive a record_access call, not be reset.
+new_sandbox
+printf '%s\n' '{"ts":"2026-05-01T10:00:00Z","producer":"/d","scope":"s","summary":"a","tags":["x"],"dedup_key":"rl1","access_count":0}' \
+  > .geniro/knowledge/learnings.jsonl
+trap 'echo caller-int' INT
+trap 'echo caller-term' TERM
+pre_int=$(trap -p INT); pre_term=$(trap -p TERM)   # INT may be untrappable in a background job
+set +e; record_access rl1; set -e
+int_trap=$(trap -p INT); term_trap=$(trap -p TERM)
+trap - INT TERM
+if [ "$int_trap" = "$pre_int" ] && [ "$term_trap" = "$pre_term" ] && [ -n "$pre_term" ]; then
+  pass "record_access restores the caller's INT/TERM traps"
+else
+  fail "record_access dropped the caller's traps — INT: '$int_trap' TERM: '$term_trap'"
+fi
+
 # ===== Pre-acquire stale-lock reclaim (the crash-wedge branch) =====
 # A crash while another rewriter held the mkdir DIRECTORY lock leaves it behind
 # with no trap to clear it; without reclaim every later bump skips silently. The

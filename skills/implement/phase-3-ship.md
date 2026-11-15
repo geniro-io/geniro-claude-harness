@@ -31,7 +31,7 @@ Phase 2's exit and this entry are one continuous stretch: the phase-body read, t
    **Resolve the grid before spawning.** Map the codebase-explorer's `change_scope` to a dimension set per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-grid-scaling.md`. Two overrides on top of that table's row:
 
    - **Risk override.** Any matched signal on the codebase-explorer's `Risk flags:` line (Step 6 of its Output Schema) forces the full always-fire set regardless of `change_scope` — a `trivial`-scoped diff that touches auth or a migration still gets `security`, per that file's risk-override rule.
-   - **Spec-driven `small`-tier override.** When Step 2 resolved a real spec.md and the resolved grid is the `small` row, add `architecture` regardless — it is the sole carrier of spec-compliance and docs-staleness checks in this skill (`implement-reference.md` §"The reviewer dimensions"), so the `small` row's drop of it would leave those checks silently uncovered on exactly the tier a spec-driven small diff lands in. An inline-task run (no spec) keeps the table's row unchanged.
+   - **Spec-driven `small`-tier override.** When Step 2 resolved a real spec.md and the resolved grid is the `small` row, add `architecture` regardless — it is the sole carrier of spec-compliance and docs-staleness checks in this skill (`implement-reference.md` §"The reviewer dimensions") — dropping it would leave those checks uncovered. An inline-task run (no spec) keeps the table's row unchanged.
 
    Announce the resolved set in plain English before firing — a narrowed grid is never silent. Name `intent` as "intent (why the change was made)"; the other slugs read as plain words.
 
@@ -39,7 +39,7 @@ Phase 2's exit and this entry are one continuous stretch: the phase-body read, t
 
    - **Custom reviewer dimensions** — discovered once at Round 1 entry via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (`.geniro/instructions/review-extra/<slug>.md`, capped and path-filtered per that helper). Append one `Agent(subagent_type="reviewer-agent",...)` call per spec to the same parallel batch. Custom dims run at every tier, independent of the resolved grid.
 
-   **Declare the set before firing.** Write state.md `spawn_dims_declared: [<resolved grid>, custom:<slug>, ...]` + `spawn_dims_count` via `atomic_state_write`, writing the round's review packet in that same response (`${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Self-review reviewer-agent template"; every round writes a fresh one), then fire the batch — the same declare-before-fire contract `/geniro:review` Phase 2 uses. Step 2 diffs the return against this list before any finding is collected.
+   **Declare the set before firing.** Write state.md `spawn_dims_declared: [<resolved grid>, custom:<slug>, ...]` + `spawn_dims_count` via two `atomic_state_set_field` calls, writing the round's review packet in that same response (`${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Self-review reviewer-agent template"; every round writes a fresh one), then fire the batch. Step 2 diffs the return against this list before any finding is collected.
 
    **Edge-case test-authoring step — inline, no spawn.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Edge-case test authoring". SKIPPED on either of two conditions:
      - Codebase-Explorer `change_scope: trivial`, OR
@@ -53,7 +53,7 @@ Phase 2's exit and this entry are one continuous stretch: the phase-body read, t
 
 4. **Escalation on fix-loop round-cap exhaust or a not-converging signal.** Before rendering, write `phase: phase-3-escalated` via `atomic_state_set_field` — mirroring `phase-2-implement.md`'s equivalent write — so a compaction while this AUQ is open resumes into the paused state and re-surfaces it, rather than re-running the review round. Render the unresolved findings to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, then fire the lean AUQ (header: `"Unresolved"`; render procedure in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Bounded fix loop", "Escalation at exhaust"); options:
    - A) Hand off to /geniro:debug — state.md `phase: debug-handoff` (terminal)
-   - B) Accept findings, ship anyway — apply the final full-suite trigger, append `## Accepted Findings` block (edit it in place when present), then Step 5; the Ship sub-step writes `phase: ship`
+   - B) Accept findings, ship anyway — first persist the pick as an `approvals[]` entry via `atomic_state_append_list_item` (`category: phase3_escalation`, `picked: accept`, `at`; a resume that finds it skips the re-ask), then apply the final full-suite trigger, append `## Accepted Findings` block (edit it in place when present), then Step 5; the Ship sub-step writes `phase: ship`
    - C) Abort — state.md `phase: aborted` (terminal)
 
    Empty answer — re-ask through the tool first; fall back to plain text only on a repeated empty-answer loop, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.

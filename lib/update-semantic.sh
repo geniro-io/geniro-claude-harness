@@ -62,17 +62,11 @@ _US_STALE_LOCK_SECS="$(_geniro_lock_reclaim_secs)"
 # Before acquiring, reclaim a stale lock whose mtime is older than the stale
 # window — a SIGKILL/crash while holding the lock leaves the file behind with no
 # trap left to clear it, which would wedge every future L3 write at rc=11
-# forever. The reclaim removes the abandoned lock, then the O_EXCL create retries.
+# forever. The reclaim (lib/lock-reclaim.sh) renames the abandoned lock aside so
+# only one racing reclaimer removes it, then the O_EXCL create retries.
 _us_acquire_lock() {
   local _us_path="$1"
-  if [ -f "$_us_path" ]; then
-    local lock_mtime now
-    lock_mtime=$(stat -c %Y "$_us_path" 2>/dev/null || stat -f %m "$_us_path" 2>/dev/null || echo 0)
-    now=$(date +%s)
-    if [ $(( now - lock_mtime )) -gt "$_US_STALE_LOCK_SECS" ]; then
-      rm -f "$_us_path" 2>/dev/null
-    fi
-  fi
+  _geniro_reclaim_stale_lock "$_us_path" "$_US_STALE_LOCK_SECS" || true
   # `set -C` (noclobber) makes `:>` fail if the file exists.
   (set -C; : > "$_us_path") 2>/dev/null
 }
@@ -83,9 +77,28 @@ _us_acquire_lock() {
 # zsh nothing else would clear the INT/TERM traps — or the lock.
 _us_release_lock() {
   rm -f "${1:-}"
-  trap - INT TERM
-  if [ -n "${BASH_VERSION:-}" ]; then
-    trap - RETURN
+  _us_restore_traps
+  return 0
+}
+
+# Disarm update_semantic's traps and put back whatever INT/TERM/RETURN traps the
+# caller had (captured by `trap -p` before ours were installed). Bash only: zsh
+# has no `trap -p` and no RETURN trap, so there the traps are just cleared.
+# Idempotent: bash still fires update_semantic's RETURN trap once after an
+# explicit release, and a second run must not wipe the traps just restored.
+_US_SAVED_TRAPS=""
+_US_TRAPS_ARMED=0
+_us_restore_traps() {
+  if [ "$_US_TRAPS_ARMED" -eq 1 ]; then
+    _US_TRAPS_ARMED=0
+    trap - INT TERM
+    if [ -n "${BASH_VERSION:-}" ]; then
+      trap - RETURN
+      if [ -n "$_US_SAVED_TRAPS" ]; then
+        eval "$_US_SAVED_TRAPS"
+      fi
+    fi
+    _US_SAVED_TRAPS=""
   fi
   return 0
 }
@@ -190,8 +203,10 @@ update_semantic() {
   # against $lock_path/$_us_inflight_tmp values that no longer apply, so the next
   # Ctrl-C in that shell would run stale cleanup and exit it outright instead of
   # behaving normally.
+  _US_TRAPS_ARMED=1
   if [ -n "${BASH_VERSION:-}" ]; then
-    trap 'rm -f "$lock_path"; trap - INT TERM RETURN' RETURN
+    _US_SAVED_TRAPS=$(trap -p INT TERM RETURN)
+    trap 'rm -f "$lock_path"; _us_restore_traps' RETURN
   fi
 
   # A SIGINT/SIGTERM mid-write would skip the RETURN trap and leave the lock (and
@@ -218,9 +233,10 @@ update_semantic() {
       # rc=68 oversized, rc=69 append IO failure, rc=70 nothing to append
       # (redact_secrets returned empty — a silent 0 there would report a
       # snapshot update that never reached disk).
-      local ap_rc
-      printf '%s' "$arg1" | atomic_state_append "$target_path"
-      ap_rc=$?
+      # `|| ap_rc=$?`, not `ap_rc=$?` on the next line: under a caller's
+      # `set -e` a failing append would abort before the lock release below.
+      local ap_rc=0
+      printf '%s' "$arg1" | atomic_state_append "$target_path" || ap_rc=$?
       if [ "$ap_rc" -ne 0 ]; then
         rc=$ap_rc
       fi
@@ -229,7 +245,11 @@ update_semantic() {
       # Redact the replacement value before it reaches disk (the match prefix
       # stays verbatim — redacting it would change what it matches).
       arg2=$(printf '%s' "$arg2" | redact_secrets "update_semantic" "replace:$target_md" "")
-      if [ ! -f "$target_path" ]; then
+      if [ -z "$arg1" ]; then
+        # awk index(s, "") is 1: an empty prefix would overwrite line 1.
+        echo "update_semantic: --replace prefix must not be empty" >&2
+        rc=64
+      elif [ ! -f "$target_path" ]; then
         # No file → no-op (replace can't match anything).
         rc=0
       else

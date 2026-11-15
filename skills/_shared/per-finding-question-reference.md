@@ -135,8 +135,8 @@ Structurally identical to the Single-finding gate above, but the "finding" is co
 | `<hypothesis title>` in `question` | confirmed hypothesis's title |
 | chat digest's observed failure | first line of confirmed hypothesis's `## Hypotheses` Result field → captured pre-fix output |
 | chat `Technical detail` block — cause→effect flow visual + evidence snippet | `## Root Cause` file:line (the flow's origin node) + full captured pre-fix output (2-5 lines) from `## Hypotheses` Result field |
-| chat `Reproduction status` | "Hypothesis confirmed at Phase 1 Isolate; reproduction test pending Phase 2" (multi-path fix gate) OR "Reproduction infeasible — <reason from `## Reproduction Test` Reproduction Decision>" (repro-infeasible escape hatch) |
-| chat digest's hypothesis reference | hypothesis ID from state.md `## Hypotheses` |
+| chat `Reproduction status` | "The cause is confirmed; the reproduction test is not written yet" (multi-path fix gate) OR "Reproduction infeasible — <reason from `## Reproduction Test` Reproduction Decision>" (repro-infeasible escape hatch) |
+| chat digest's hypothesis reference | the confirmed cause's plain-English title from state.md `## Hypotheses`, never its ID |
 
 ## Where the body fields come from
 

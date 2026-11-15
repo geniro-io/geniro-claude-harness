@@ -18,7 +18,7 @@ state.md `mode: adversarial`. Phases: `adversarial-mode-detect` → `adversarial
 
 ### A1. Purpose
 
-Attacker-mindset pass that AUTHORS executable F→P failing tests against a diff, run inline in this same context — no subagent spawn. Complements Scientific Mode: Scientific Mode REPORTS hypotheses about a known bug; Adversarial Mode hunts for unknown bugs in recent changes by writing tests that fail on today's code. Because authoring and verification share one context, the guarantee against a false RED claim is not a second reader — it is that no hypothesis counts until its own test has actually been run and observed to fail (A4 step 3).
+Attacker-mindset pass that AUTHORS executable F→P failing tests against a diff, run inline in this same context — no subagent spawn. Scientific Mode REPORTS hypotheses about a known bug; this mode hunts unknown bugs in recent changes with tests that fail on today's code. Because authoring and verification share one context, the guarantee against a false RED claim is not a second reader — it is that no hypothesis counts until its own test has actually been run and observed to fail (A4 step 3).
 
 ### A2. Diff resolution
 
@@ -30,19 +30,19 @@ Attacker-mindset pass that AUTHORS executable F→P failing tests against a diff
 
 ### A3. Skip conditions
 
-Adversarial mode is SKIPPED and the skill reports `"no adversarial pass — <reason>"` when:
+Evaluated right after A4 step 1 resolves the diff — the conditions need it. Adversarial mode is SKIPPED and the skill reports `"no adversarial pass — <reason>"` when:
 
 - Empty diff (nothing to test).
 - Diff contains zero production-code files (docs / config / lock / generated only).
 - Diff >50 changed files OR >1000 changed LOC → suggest `/geniro:review` for oversized diffs (the authored-test hard cap wastes budget on diffs this large).
 
-Write terminal `phase: adversarial-aborted` with `## Termination reason: <skip reason>` — matching the A4 step 5 zero-red-tests exit — then run Cleanup (A7). Without this write, `phase: adversarial-mode-detect` (set at Phase 0 exit) stays the active phase and resurfaces the task on every session start.
+Write terminal `phase: adversarial-aborted` with `## Termination reason: <skip reason>` — matching the A4 step 5 zero-red-tests exit — then run Cleanup (A7). Without this write, `phase: adversarial-investigate` stays the active phase and resurfaces the task on every session start.
 
 ### A4. RED-phase workflow
 
 RED only: author the failing test FIRST, verify it fails with a real assertion signature, then escalate the fix to the receiving skill. Tests are never authored alongside or after the fix in this mode — a test written after the fix passes on first run and proves nothing about the bug.
 
-**Phase writes.** On entry here write `phase: adversarial-investigate` via `atomic_state_set_field` (the A3 skip exit has already written its terminal), and `phase: adversarial-ship` at the start of step 4, before the handoff. The SKILL.md `phase:` table routes both back to this file, so a compaction-resume reads `## Diff Scope` and `## Authored Tests` instead of re-running the loop.
+**Phase writes.** On entry here write `phase: adversarial-investigate` via `atomic_state_set_field` (step 1 then resolves the diff, and the A3 skip exit writes its terminal), and `phase: adversarial-ship` at the start of step 4, before the handoff. The SKILL.md `phase:` table routes both back to this file, so a compaction-resume reads `## Diff Scope` and `## Authored Tests` instead of re-running the loop.
 
 0. **Refresh custom instructions on entry.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: debug`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract. Step 3 authors test code, and Phase 0's load predates the mode routing that got here. Load no project snapshot and run no past-learnings query: diff-scoped work receives its diff pre-inlined, so a snapshot load is scope creep.
 1. **Resolve the diff** (A2). Record the resolved range into state.md `## Diff Scope` — a compaction-resume re-entering this step reads that record rather than re-deriving the range against whatever branch is current then.
@@ -75,7 +75,7 @@ Markdown template for the findings block (Diff scope / Hypotheses generated / Te
 
 ### A7. Cleanup
 
-`rm -rf .geniro/state/debug/<slug>/` for the current branch's slug, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — every experiment artifact the run wrote under that dir goes with `state.md`. `from-debug-adversarial-<branch>.md` lives under `.geniro/state/handoff/`, outside the slug dir, so it survives as the audit trail. Authored test files stay on disk at their project test paths — they are the deliverable, not scratch. Best-effort: `2>/dev/null || true`.
+`[ -n "$slug" ] && rm -rf ".geniro/state/debug/$slug/"` for the current branch's slug, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract. `from-debug-adversarial-<branch>.md` lives under `.geniro/state/handoff/`, outside the slug dir, so it survives as the audit trail. Authored test files stay on disk at their project test paths — they are the deliverable, not scratch. Best-effort.
 
 ---
 

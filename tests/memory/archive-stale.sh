@@ -364,6 +364,20 @@ else
 fi
 unset -f jq
 
+# jq splits("\n") is quadratic in log size (2k ~900B entries ~8s, 4k ~33s);
+# split("\n")[] is linear. Seed 2000 realistic entries and require seconds-fast.
+new_sandbox
+pad="$(printf 'x%.0s' $(seq 1 700))"
+awk -v pad="$pad" -v ts="$NOW_TS" 'BEGIN{for(i=1;i<=2000;i++) printf "{\"producer\":\"/debug\",\"scope\":\"x\",\"summary\":\"%s\",\"tags\":[\"bug\"],\"type\":\"diagnosis\",\"ts\":\"%s\",\"trust\":\"inferred\",\"access_count\":0,\"recurrence_count\":1,\"dedup_key\":\"k%d\"}\n", pad, ts, i}' > "$LOG"
+t0=$(date +%s)
+set +e; bash "$REPO_ROOT/lib/archive-stale.sh" >/dev/null 2>&1; rc=$?; set -e
+t1=$(date +%s)
+if [ "$((t1 - t0))" -lt 4 ] && { [ "$rc" -eq 0 ] || [ "$rc" -eq 1 ]; }; then
+  pass "archive-stale on 2000 entries finishes in $((t1 - t0))s (linear jq split)"
+else
+  fail "archive-stale on 2000 entries took $((t1 - t0))s rc=$rc (quadratic splits?)"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

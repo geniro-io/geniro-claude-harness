@@ -1,12 +1,12 @@
 # /improve-template — Phase 4-6 (implement, self-review, report)
 
-Phase body for `.claude/skills/improve-template/SKILL.md`. Read on entry to Phase 4 — Phase 1-fast fixes, create-skill mode, and process-handoff triage runs that stop before Phase 4 never take this branch, and neither does a run that compacts before reaching it.
+Phase body for `.claude/skills/improve-template/SKILL.md`. Read on entry to Phase 4. Create-skill runs re-enter here at Phase 5 Step 1, Phase 6, and the description validator; Phase 1-fast fixes and process-handoff triage runs that stop before Phase 4 never reach it.
 
 ## Contents
 
 - Phase 4 — Implement (delegated)
 - Phase 5 — Self-review (fresh subagent)
-- Phase 6 — Report, learn & complete (Definition of done · Summary · learnings · cleanup · ship)
+- Phase 6 — Report, learn & complete (Summary · learnings · cleanup · ship · Definition of done)
 - Description-format validator (Phase 4 Step 3 extension)
 
 ---
@@ -87,7 +87,7 @@ Orchestrator runs these checks directly (no subagent). All must pass before Phas
 5. **Description-format checks:** apply when any changed SKILL.md's YAML `description:` field was added or modified. The checks and their warning/blocker levels are in § Description-format validator below.
 6. **README/docs sync + generated-file sync (when changes touch user-facing surface or `agents/*.md`):** apply when the change adds/removes/renames a sub-command (verb), modifies YAML `description` or `argument-hint`, alters advertised behavior of an existing slash command, or adds/removes a top-level skill. Grep `README.md` and any `docs/*.md` for the changed skill's name (e.g., `geniro:actions`); also grep `CLAUDE.md`, whose § Skill routing says which skills ship code and which are read-only. For each matched section, read it and compare against the new behavior — flag as **warning** any drift: missing or extra sub-commands in lists, contradictory or stale behavioral descriptions, outdated usage examples, stale frontmatter mirrors. Propose the specific README/CLAUDE.md edits as part of the Phase 6 Step 1 summary so they ship with the same commit the user approves; do NOT silently apply them. If no README/CLAUDE.md/docs mention exists for the changed skill, note "no docs mention to sync". Warning-level — does NOT trigger the fix agent.
    **Generated Cursor agents — blocker, not a warning:** when the change edited any `agents/*.md`, run `scripts/build-cursor-agents.sh` and include the regenerated `cursor/agents/*.md` in the same change set. `tests/cursor/build-agents-fresh.sh` hard-fails CI on drift between the two, so omitting it ships a red build. Fix it by re-running the script rather than spawning a fix agent, and never hand-edit `cursor/agents/`.
-7. **Word budget:** `scripts/word-delta.sh <base>` exits 0 — a positive total fails this check unless the user approved that named growth at the Phase 3 approval.
+7. **Word budget:** `scripts/word-delta.sh <base>` exits 0 — a positive total fails this check unless the user picked the approve-growth option at Phase 3.
 
 If any check fails: spawn a fix agent. Re-run failed checks only. Max 1 fix round. Write checkpoint. Warnings (the warning-level description-format checks, #6 README/docs drift) do NOT trigger the fix agent — they appear in the Phase 6 Step 1 Summary as advisory items.
 
@@ -187,28 +187,6 @@ If no pre-existing bugs were found, skip this step.
 
 ## PHASE 6: REPORT, LEARN & COMPLETE
 
-### Step 0: Walk the Definition of done
-
-These are the load-bearing exit gates — the checks that, if skipped, ship an unreviewed or unapproved change to the plugin. Per-phase mechanics live in their phase sections; this list is the final correctness check, not a re-listing of every step.
-
-- [ ] The workspace step settled before Phase 1 spawned anything, and its pick is recorded in the state file's `branch:` / `worktree:`
-- [ ] Every SKILL.md this run changed or created was judged against `.claude/rules/skill-structure.md` § File-size limits, and any overflow was split into a companion reference rather than trimmed away
-
-#### improve-existing-skill mode
-- [ ] Every implemented change traces to a finding the user approved at the Phase 3 evidence gate — no scope creep, and no evidence-free finding survived Phase 2's filter
-- [ ] Every spawned and every skipped research source is in `research-sources:` with its one-line reason
-- [ ] The Phase 4 Step 3 validation gate ran on every changed SKILL.md, including the description-format sub-checks
-- [ ] A fresh agent reviewed the changes in Phase 5, anything still open is listed under Still open, and its subtraction report reached the Phase 6 summary — a pass that removed nothing said so and justified it
-- [ ] The state file is cleaned up, `tests/run-all.sh` passed, and commit-and-push was offered to the user rather than performed unasked
-
-#### create-skill mode
-- [ ] The interview completed before authoring: skill kind, then 3-5 sequential questions covering trigger / anti-trigger / inputs / outputs / tools / optional subagents / optional workflow
-- [ ] The pre-existing-instruction check ran and its overlap table was reviewed — a duplicate is rejected and the user routed to the existing skill, never authored alongside it
-- [ ] The author agent received the interview transcript, the constraints, and 1-2 exemplar SKILL.md files
-- [ ] The Phase 4 Step 3 validation gate ran on the new file, including the description-format sub-checks
-- [ ] A fresh review agent applied the Phase C create-skill checklist and its blockers are fixed
-- [ ] Commit-and-push was offered to the user rather than performed unasked
-
 ### Step 1: Summary
 
 Present to the user:
@@ -260,6 +238,28 @@ If the user picks commit+push or commit-only:
 If the user picks skip, print the suggested commit message and the `git add` / `git commit` / `git push` commands for them to run manually.
 
 **process-handoff mode, once the user ships (a commit):** close each consumed entry in the producer's handoff — set `status: resolved` (or `wontfix` for a finding the user declined at the Phase 3 gate) plus `resolution.picked` / `.at` / `.resolved_by: improve-template`, patching the entry with `atomic_state_edit` anchored on its own lines so every other key, entry and body section the producer wrote stays exactly as written. Ingestion skips `resolved` and `wontfix`, so closing the entry is what stops a later run re-ingesting fixes already shipped.
+
+### Step 5: Walk the Definition of done
+
+Walk this after Step 4: the load-bearing exit gates, checking outcomes of Phases 4-6. Per-phase mechanics live in their phase sections.
+
+- [ ] The workspace step settled before Phase 1 spawned anything, and its pick is recorded in the state file's `branch:` / `worktree:`
+- [ ] Every SKILL.md this run changed or created was judged against `.claude/rules/skill-structure.md` § File-size limits, and any overflow was split into a companion reference rather than trimmed away
+
+#### improve-existing-skill mode
+- [ ] Every implemented change traces to a finding the user approved at the Phase 3 evidence gate — no scope creep, and no evidence-free finding survived Phase 2's filter
+- [ ] Every spawned and every skipped research source is in `research-sources:` with its one-line reason
+- [ ] The Phase 4 Step 3 validation gate ran on every changed SKILL.md, including the description-format sub-checks
+- [ ] A fresh agent reviewed the changes in Phase 5, anything still open is listed under Still open, and its subtraction report reached the Phase 6 summary — a pass that removed nothing said so and justified it
+- [ ] The state file is cleaned up, `tests/run-all.sh` passed, and commit-and-push was offered to the user rather than performed unasked
+
+#### create-skill mode
+- [ ] The interview completed before authoring: skill kind, then 3-5 sequential questions covering trigger / anti-trigger / inputs / outputs / tools / optional subagents / optional workflow
+- [ ] The pre-existing-instruction check ran and its overlap table was reviewed — a duplicate was acted on only by the user's pick (extend the existing skill, author anyway, or cancel)
+- [ ] The author agent received the interview transcript, the constraints, and 1-2 exemplar SKILL.md files
+- [ ] The Phase 4 Step 3 validation gate ran on the new file, including the description-format sub-checks
+- [ ] A fresh review agent applied the Phase C create-skill checklist and its blockers are fixed
+- [ ] Commit-and-push was offered to the user rather than performed unasked
 
 ---
 

@@ -122,7 +122,7 @@ State.md `phase: self-review` on entry, `phase: ship` at the Ship sub-step. **On
 
 ## Task execution entry
 
-0. **Check for existing state.md.** Glob `<task-slug>/state.md`:
+0. **Check for existing state.md.** Look for `<task-slug>/state.md`:
 - **No state.md** → fresh run. Proceed to Phase 1.
 - **state.md exists, phase reads as terminal** → task complete, surfaced to user (or, when `$ARGUMENTS` carries a new task description, derive a new slug and start fresh).
 - **state.md exists, phase reads as non-terminal (or unreadable)** → validate it first via `validate_state_file` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` before trusting it for resume; on failure, open the recovery AUQ (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency). On pass, append a `$ARGUMENTS` ship modifier as a `ship_mode` entry (`source: arguments`; the latest entry wins), then resume from `phase:`.

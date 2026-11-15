@@ -13,7 +13,7 @@ Fire Phase 2 if **either** condition holds:
 - Phase 1 research surfaced a UI file per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §UI-file detection rule, OR
 - $ARGUMENTS topic string contains a UI noun (`page`, `screen`, `modal`, `form`, `dashboard`, `button`, `view`, `panel`, `widget`) as a whole word, singular or plural, and the change builds or changes a screen in the project's own product UI, even before any UI file exists — not config for an ops or monitoring tool (Grafana JSON, Terraform, Helm values).
 
-No trigger → skip Phase 2. Transition `phase: clarify` and proceed to Phase 3.
+Transition `phase: clarify` and proceed to Phase 3.
 
 ### 2.2 UI preview procedure
 

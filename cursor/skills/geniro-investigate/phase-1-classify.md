@@ -36,7 +36,7 @@ Fire `AskQuestion` (header "Research"):
 - **Question**: "This looks like a purely external question. `/deep-research <question>` cross-checks more web sources than a single research agent. How do you want to proceed?"
 - **Options**: "Run /deep-research instead" / "Continue with /geniro:investigate"
 
-On "Run /deep-research instead": surface the one-line directive `Run: /deep-research <question>` and terminate — do not auto-invoke. No state.md exists yet (Step 2 creates it) and the exit deletes the run's state directory anyway, so write no phase; remove any directory a resumed run left (`rm -rf .geniro/state/investigate/<slug>/ 2>/dev/null || true` — no handoff file to delete, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract). On "Continue": proceed to Step 2 with the Internet Researcher as normal. If `/deep-research` is unavailable (workflows disabled, or no web-search capability), skip this step silently and continue.
+On "Run /deep-research instead": surface the one-line directive `Run: /deep-research <question>` and terminate — do not auto-invoke. No state.md exists yet (Step 2 creates it) and the exit deletes the run's state directory anyway, so write no phase; remove any directory a resumed run left (`[ -n "$slug" ] && rm -rf ".geniro/state/investigate/$slug/"` — no handoff file to delete, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract). On "Continue": proceed to Step 2 with the Internet Researcher as normal. If `/deep-research` is unavailable (workflows disabled, or no web-search capability), skip this step silently and continue.
 
 This routing fires only for the Internet-only classification — any question that needs code or git evidence stays in /geniro:investigate, since `/deep-research` has no codebase or git access.
 
@@ -58,7 +58,7 @@ Record the result in `## Scope` and the Step 1 classification in `## Classificat
 
 Before Phase 2 spawns, check the question's domain terms (proper-noun-shaped tokens, role and entity names — not generic technical words) against the auto-loaded CLAUDE.md Domain Context section: a term investigated under the wrong vocabulary returns the wrong answer. No match (note a new term in the answer) or an exact match proceeds. A **mismatch** — the glossary defines the term one way and the question uses it another — fires the gate. Skip the step when CLAUDE.md has no Domain Context section or the question has no domain terms; when in doubt, skip, because a false positive costs the user more than a false negative costs the investigation.
 
-On a mismatch, write `phase: classify-escalated` via `atomic_state_set_field` first — a compaction while the question is outstanding then resumes as "task was paused — your previous options:" instead of re-running Phase 1 — then use `AskQuestion` with header "Glossary":
+On a mismatch, write `phase: classify-escalated` via `atomic_state_set_field` first, then use `AskQuestion` with header "Glossary":
 - **Question**: "Your CLAUDE.md defines `<term>` as `<glossary definition>`. Your question seems to use `<term>` as `<inferred usage>`. Which one should I investigate?"
 - **Options**: "Use the glossary definition" / "Use my new meaning (and note the divergence in the answer)" / "Both — these are genuinely different concepts that share a name (please pick disambiguating names)"
 
@@ -70,7 +70,7 @@ The exact refs cited in Phase 2 findings (per the Evidence Standard) are what th
 
 Unique requirement: state.md `## JIT Cadence` body section logs which steps fired for this run — the audit trail that makes the JIT discipline reviewable.
 
-**Duplicate-answer check** — before spawning agents, re-query past learnings for this question or closely related topics, routed as in Phase 1 Step 0.5 item 3 but with the keywords the classification has since sharpened. Log the outcome to state.md `## JIT Cadence` — either the prior answer found, or `none — duplicate-answer check ran and found nothing`, so the section shows this step fired even when it turned up nothing. If a comprehensive prior answer exists, present it and ask via `AskQuestion` whether the user wants a fresh investigation, then persist the pick to state.md frontmatter `approvals[]` with category `duplicate_answer` so a compaction-resume does not re-ask.
+**Duplicate-answer check** — before spawning agents, re-query past learnings for this question or closely related topics, routed as in Phase 1 Step 0.5 item 3 but with the keywords the classification has since sharpened. Log the outcome to state.md `## JIT Cadence` — either the prior answer found, or `none — duplicate-answer check ran and found nothing`, so the section shows this step fired even when it turned up nothing. If a comprehensive prior answer exists, present it and ask via `AskQuestion` with options "Use the prior answer" / "Run a fresh investigation", then persist the pick to state.md frontmatter `approvals[]` with category `duplicate_answer` so a compaction-resume does not re-ask. "Use the prior answer" presents it, writes terminal `phase: done` via `atomic_state_set_field`, and runs Phase 3 Step 6 cleanup; "fresh" continues.
 
 **Ambiguous scope** — when the question's scope is ambiguous, use the `AskQuestion` tool to clarify it before spawning agents. Ask one focused question, not multiple.
 
