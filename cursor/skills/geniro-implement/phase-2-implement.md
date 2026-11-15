@@ -14,7 +14,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 
 ## PHASE 2: IMPLEMENT
 
-**Advance state.md to `phase: implement` as this phase's first write** — `atomic_state_set_field "$S" phase implement`. Phase 1 leaves the file at `phase: analyze` and this phase entry owns the advance. A resume routes on this field alone: left at `analyze`, it sends the next session back into Phase 1 to re-run Step 0 and the research spawns.
+**On entry from Phase 1 (not on a resume into in-progress Phase 2), check state.md `approvals[]` for `category: spec_challenge` first — absent means Phase 1 Step 12.5 never ran: go back and run it before any edit.** Then **advance state.md to `phase: implement` as this phase's first write** — `atomic_state_set_field "$S" phase implement`. Phase 1 leaves the file at `phase: analyze` and this phase entry owns the advance. A resume routes on this field alone: left at `analyze`, it sends the next session back into Phase 1 to re-run Step 0 and the research spawns.
 
 **Refresh the custom instructions on entry** (always, regardless of compaction-marker presence). Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`, per its §Echo contract. Phase 2 is the only code-writing phase, and a resume — a compaction, or a fresh session reading `phase: implement` from state.md — enters it with no rules in context unless this refresh runs. No project-snapshot reload here — `load_semantic` runs once at Phase 1 entry and Phase 3 does not re-load it either (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md` §Step 6).
 
