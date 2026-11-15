@@ -46,7 +46,7 @@ clean_task_transients() {
     "$task_dir"/playwright-verify.png \
     2>/dev/null
   # .research-*.md covers .research-out.md, /geniro:plan's per-facet
-  # .research-<facet>.md, and the Phase 4 .research-critique-*.md critiques.
+  # .research-<facet>.md, and the Phase 4 .research-critique.md critique.
   # Matched with find, not a glob: zsh sets NOMATCH by default, so an unmatched
   # glob aborts the WHOLE rm — which would silently skip every literal above it
   # too, making the helper a no-op under the shell the Bash tool often runs.

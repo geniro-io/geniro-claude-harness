@@ -23,7 +23,7 @@ Set the schema version from what the copied `workflow_refs[]` actually carry:
 
 The Phase 7 validator shape-checks `workflow_refs` on m5-v2 / m5-v3 / m5-v4, so an m5-v1 spec carrying the field would escape validation — emit m5-v2 or later whenever `workflow_refs:` is present.
 
-Write spec.md (and state.md / each `milestone-N.md`) via `atomic_state_write`, so a reader never sees a half-written spec.
+Write spec.md (and state.md / each `milestone-N.md`) via `atomic_state_write`, so a reader never sees a half-written spec. When the file already exists, apply the plan-loop §Spec writes rule.
 
 After writing spec.md, append a `## Tool log` entry to state.md via `atomic_state_append_section` in the plan-loop §Echo contract shape — `tool: atomic_state_write`, `detail: <spec path>`, `status: ok`, `result_ref: <bytes-count>`.
 
@@ -42,5 +42,5 @@ If `approvals[]` carries a `milestone_slice` entry picked "Slice into milestones
 If Phase 6 is re-entered after compaction, the model:
 1. Reads state.md `approvals[]` — the clarify answers, `approach_choice`, any milestone entries persisted in Phases 3-5, and every `revision_request` entry from Phase 8.
 2. Re-authors every section from those decisions, applying each `revision_request` in order to the sections it names — without them the rebuild reverts the user's requested changes.
-3. Re-writes spec.md (overwrite via `atomic_state_write`, since this is idempotent regeneration).
+3. Re-writes spec.md and each `milestone-N.md` from the content on disk per §Spec writes — span-edited fixes live only there.
 4. Re-appends a `## Tool log` entry with note `(re-entry — post-compaction regeneration)`.

@@ -39,19 +39,18 @@ Effort-tier-scaled (tier already detected in Phase 1.2 — the critic cost lands
 |---|---|
 | Trivial | Skipped — single narrow approach, no ranking risk |
 | Small | Skipped — too narrow to warrant a critic; if Phase 4 produced ≥2 genuinely competing approaches, treat as Medium (1 comparative critic) |
-| Medium | 1 `codebase-research-agent` — stress-tests all approaches comparatively in one spawn |
-| Big | 1 `codebase-research-agent` per approach (2-3 in parallel) — each independently challenges its assigned approach |
+| Medium, Big | 1 `codebase-research-agent` — stress-tests all approaches comparatively in one spawn |
 
-Spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research, all in a single assistant response (parallel-spawn rule), per the spine §Spawn contract (OMIT `model=`). The orchestrator MAY draft the §4.3 approach render during the wait, splicing each approach's `Stress-test:` verdict in on return; the batch is drained before §4.3. Per-spawn slots:
+Spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research, once, per the spine §Spawn contract (OMIT `model=`). The orchestrator MAY draft the §4.3 approach render during the wait, splicing each approach's `Stress-test:` verdict in on return; the critic returns before §4.3. Slots:
 
-- `RESEARCH_QUESTION`: "Stress-test approach '<name>' against this codebase: find blockers, hidden coupling, convention conflicts, and prior rejected attempts that would make it fail or cost more than its stated effort estimate. Work to disprove the approach's feasibility, not to confirm it — the approach text reads plausible because its author believed it, and plausibility is not evidence. A no-risks verdict is credible only when you list the surfaces you checked and found clean." (Medium tier: enumerate all approaches in one question.)
+- `RESEARCH_QUESTION`: "Stress-test each approach in the inlined list against this codebase: find blockers, hidden coupling, convention conflicts, and prior rejected attempts that would make it fail or cost more than its stated effort estimate. Work to disprove the approach's feasibility, not to confirm it — the approach text reads plausible because its author believed it, and plausibility is not evidence. A no-risks verdict is credible only when you list the surfaces you checked and found clean."
 - `DELIVERABLE_SHAPE`: `"table of [{approach, risk, evidence file:line, severity: blocking|major|minor}], plus one 'Checked:' line per approach listing the files/surfaces examined — required even, and especially, when no risks were found"`
-- `SCOPE_HINT`: path globs from the approach's touched surface (Phase 1 echo entries).
+- `SCOPE_HINT`: path globs from every approach's touched surface (Phase 1 echo entries).
 - `PRE_INLINED_CONTEXT`: the §4.1 approach list + relevant Phase 1 `query-learnings` entries — especially any prior `user_rejected_suggestion` for this topic-area, which is itself a blocking signal.
-- `OUTPUT_PATH`: `<task-dir>/.research-critique-<approach-slug>.md` (Big) or `<task-dir>/.research-critique.md` (Medium).
+- `OUTPUT_PATH`: `<task-dir>/.research-critique.md`.
 - `THOROUGHNESS`: `medium`.
 
-After the batch returns, fold the critiques into the ranking — trust a verdict only as far as its evidence:
+After the critic returns, fold its critique into the ranking — trust a verdict only as far as its evidence:
 
 - **Verify before demoting.** A `blocking` verdict demotes only on verified evidence: read the cited `file:line` (one targeted Read) and confirm the quoted code grounds the risk. A `blocking` row with no `file:line` citation, or whose citation does not hold on read, downgrades to `major` with the note `evidence did not verify` — an unanchored blocker is a hypothesis, not a risk, and demoting the strongest approach on one is the over-flagging failure this bar stops.
 - An approach carrying a verified `blocking` risk is never the `Recommended` option — demote it. If every approach carries a verified blocking risk, loop back to Phase 3 with a tighter scope question rather than recommend a non-viable plan.
@@ -59,7 +58,7 @@ After the batch returns, fold the critiques into the ranking — trust a verdict
 - **A clean verdict needs a checked account.** A critique reporting no risks for an approach without its `Checked:` line is silence, not feasibility evidence — treat that approach as un-stress-tested (note "stress-test inconclusive" on it in the §4.3 chat message) rather than feasibility-confirmed.
 - Each approach gains a one-line `Stress-test:` verdict (top risk + evidence file:line) carried into the §4.3 chat message (per the Gate presentation contract) and the §4.4 `## Considered Alternatives` body.
 
-Append a `## Tool log` Echo entry per spawn. The weighing is advisory and fail-open: a failed critic logs a `## Errors` entry, and every approach it covered renders "stress-test unavailable" in §4.3, ranked on the model's own judgment.
+Append a `## Tool log` Echo entry for the spawn. The weighing is advisory and fail-open: a failed critic logs a `## Errors` entry, and every approach renders "stress-test unavailable" in §4.3, ranked on the model's own judgment.
 
 ### 4.2.5 Build-vs-buy library reuse (per approach)
 

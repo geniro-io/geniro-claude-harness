@@ -38,7 +38,7 @@ The HARD-GATE in `plan-loop.md` blocks any implementation invocation until Phase
 mode-detect → explore → [visual-companion: UI-conditional] → clarify → approaches → section-approve → write-spec → validate → spec-challenge → user-approve → handoff → done
 ```
 
-Any phase may branch to the `aborted` terminal on cancel; a Phase 7 validator hard-fail re-enters write-spec and a Phase 8 revision re-enters section-approve; visual-companion "Adjust the plan instead" re-enters explore; a Phase 7.5 `re-plan` verdict re-enters approaches, and a Phase 7.5 milestone re-open re-enters write-spec.
+Any phase may branch to the `aborted` terminal on cancel; a Phase 7 validator hard-fail re-enters write-spec and a Phase 8 revision re-enters section-approve; visual-companion "Adjust the plan instead" re-enters explore; a Phase 7.5 `re-plan` verdict re-enters approaches, and a Phase 7.5 milestone re-open re-enters write-spec; after a fold-in or revision round the validator passes straight to user-approve, skipping Phase 7.5 (§7.4).
 
 **Terminal states:** `done`, `aborted`. The SessionStart hook treats both as "planning complete or cancelled — no resume needed". Every transition into one first runs the transient cleanup (`clean_task_transients`, `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-9-handoff.md` §9.2) before the terminal `phase:` write.
 
