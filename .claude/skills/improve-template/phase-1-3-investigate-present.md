@@ -8,7 +8,7 @@ Phase body for `.claude/skills/improve-template/SKILL.md`. Read on entry to Phas
 - Phase 1 — Investigate (parallel research)
 - Phase 2 — Cross-reference & filter
 - Phase 2b — Redundancy & relevance validation (orchestrator-inline)
-- Phase 3 — Present to user (WAIT), incl. Phase 3b challenge resolution
+- Phase 3 — Present to user (WAIT)
 
 ---
 
@@ -18,7 +18,7 @@ Phase body for `.claude/skills/improve-template/SKILL.md`. Read on entry to Phas
 2. Parse the frontmatter `open_questions[]` array — each entry carries `id` / `source` (the check that surfaced it) / `question` / `severity` / `suggested_action` / `status`, plus an optional `recurrence: <M>/<T>` when the analysis ran over several threads and a `fix_kind` (`DETERMINISTIC-CHECK` | `WIRE` | `NAV-POINTER` | `TOOL-CHANGE` | `REMOVE-RULE` | `PROSE`; absent on older handoffs — treat as `PROSE`). Skip entries already `status: resolved` or `wontfix`.
 3. For each unresolved finding, run the spine's **complexity gate** to classify it (obvious bug fix → Phase 1-fast; targeted improvement or open-ended → full pipeline). The `suggested_action` and any `context` framing seed the Step 1 request-parse, and a non-`PROSE` `fix_kind` aims the request at the check, wiring, pointer, tool change, or rule removal it names rather than at more instruction text; the `source` check and `findings_count` set the scope. Order the findings by `recurrence` before severity where it is present — a defect reproduced across several independent threads is a systematic instruction failure, while a one-off may be a single run's noise.
 4. Group findings that touch the same file into one implementation unit (Phase 4 grouping) rather than running the whole pipeline per finding.
-5. Closing each consumed entry happens at Phase 6 Step 5 (`phase-4-6-implement-review.md`).
+5. Closing each consumed entry happens at Phase 6 Step 4 (`phase-4-6-implement-review.md`).
 
 ---
 
@@ -169,9 +169,5 @@ Use the `AskUserQuestion` tool — a plain-text option list bypasses the approva
 - **Options (use these exactly):**
   - "Implement all findings" — every KEEP finding becomes the Phase 4 approved set
   - "Let me pick which ones to implement" — walk the findings as multi-select `AskUserQuestion` calls (chaining past the question tool's option cap), mirroring `.claude/skills/audit-plugin/phase-5-action-gate.md`'s pick path; the findings picked become the Phase 4 approved set
-  - "I disagree with some findings — let me challenge them" — go to Phase 3b
-  - "Research deeper on specific items" — go to Phase 3b
 
-### Phase 3b: challenge resolution
-
-For each challenged finding, spawn a research agent with: the finding description, the user's concern, and instructions to search for definitive evidence. Update the evidence table based on results. Re-present to user. Loop until approved. A user who reopens a finding the rejection check filtered needs no research round — apply the Phase 2b reopen step and re-present.
+A user who disagrees in free text gets the table re-presented with the evidence they dispute re-checked. A user who reopens a finding the rejection check filtered gets the Phase 2b reopen step.

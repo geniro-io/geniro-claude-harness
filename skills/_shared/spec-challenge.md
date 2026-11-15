@@ -6,7 +6,7 @@ An adversarial verification pass, invoked per the calling skill's contract, that
 
 ## Consumers: /geniro:plan (post-write, pre-approval), /geniro:implement (Phase 1, pre-edit)
 
-`/geniro:plan` invokes after writing `spec.md` and before the human approval gate, on every run. `/geniro:implement` invokes in Phase 1 after research and before the first code edit, on every spec-driven run. Each caller passes `MODE`; the rest of the contract is identical.
+Each caller passes `MODE`; the rest of the contract is identical.
 
 ## Contents
 
@@ -166,7 +166,7 @@ One carve-out, and only one: the user elects a fact correction at the `defects-f
 
 **Record every refuted claim in state.md, and keep recording them after this pass ends.** Not rewriting the spec is correct; leaving the refutation only in chat is not. Append one entry per refuted or clarified claim to the calling skill's state.md `## Spec Divergences` body section via `atomic_state_append_section --create`: the claim as the spec states it, what the code actually shows, and the evidence quote.
 
-Keep the section live for the rest of the run. A claim is just as refuted when a failing test, a rendered screen, or the user's own push-back disproves it mid-implementation as when a verifier does here — and those arrive after this pass has finished, which is exactly when the record stops being written. Every later consumer reads this section rather than re-deriving it: the PR body and the final report, which otherwise restate the spec's number as measured fact, and any `/geniro:review` that loads the spec as plan context and would score the implementation against a claim already known to be false. The failure this prevents is narrow and real — a figure disproved mid-run, corrected in conversation, and then written into a public pull request under a sentence promising every number was measured.
+Keep the section live for the rest of the run. A claim is just as refuted when a failing test, a rendered screen, or the user's own push-back disproves it mid-implementation as when a verifier does here — and those arrive after this pass has finished, which is exactly when the record stops being written. Every later consumer reads this section rather than re-deriving it: the PR body and the final report, which otherwise restate the spec's number as measured fact, and any `/geniro:review` that loads the spec as plan context and would score the implementation against a claim already known to be false.
 
 - `clean` verdict → emit a silent advisory note in the scratch report and proceed to the first code edit. Do NOT fire an AskUserQuestion on a clean pass — a question with nothing to decide is noise, and the always-WAIT-restraint norm reserves the AUQ for a real decision.
 - `defects-found` verdict → render the divergences to chat, then fire ONE AskUserQuestion before the first code edit.
@@ -187,7 +187,7 @@ Keep the section live for the rest of the run. A claim is just as refuted when a
   **Technical detail:** <path:lines> — <the evidence quote>
   ```
 
-  Where a refuted claim is a number the spec states as measured, say the plan's figure and the real one in the plain layer — a wrong number is the one divergence a user can judge without reading any code.
+  Where a refuted claim is a number the spec states as measured, give the plan's figure and the real one in the plain layer.
 
   **Then the lean question:**
 
@@ -209,7 +209,7 @@ Persist the pick to the calling skill's state.md `approvals[]` so a compaction-r
 
 Deciding what is "changed": re-run §3's extraction over the current spec, then diff the freshly extracted claim set against the claim set + verdicts recorded in `<TASK_DIR>/.spec-challenge-out.md` from the previous pass (per §3 and §4's aggregate step, every pass writes this record — that is what makes the diff possible). Match claims by source location. A claim is in scope when it is new (no matching source location in the prior record), when its asserted fact changed (literal text differs from the prior entry), or when its citation moved. A claim whose text is byte-identical to its prior entry and whose cited file has not been written since the last pass carries its previous verdict forward — record the carry-forward explicitly rather than silently reusing it, so the scratch report shows what was re-checked and what was inherited.
 
-Two bounds keep this from looping. A re-entry whose verdict folds in no new content (`clean`) ends the chain. And each re-entry that finds defects returns to the user at the §8 question, so the loop runs only as long as the user keeps electing corrections.
+A `clean` re-entry ends the chain; one that finds defects returns to the user at the §8 question, so the loop runs only while the user keeps electing corrections.
 
 ## 9. Echo contract
 
@@ -228,7 +228,7 @@ On a clean implement-mode pass, the final line is the only user-visible output: 
 |---|---|
 | "This is a Trivial task — skip the challenge to save time." | Every caller invokes on every spec-driven run, so there is no tier for which skipping is the contract. A small spec with one wrong `file:line` is the cheap-but-fatal case the pass exists to catch; the cost is bounded to the spec's cited claims, which for a small spec is a small batch. Tier calibrates the judge's risk tolerance, not whether the pass runs. |
 | "The spec was just written/approved, so its claims are probably correct — confirm them." | "Probably correct" is the exact posture the pass refutes. The three defects that motivated this pass all lived in an approved spec that read as plausible. Re-read the cited code; a claim survives only when the code bears it out. |
-| "Verifying every cited claim is too many spawns — sample the load-bearing ones." | The claim set is already pre-bounded to the seven kinds §3 extracts, and claims that share code already share spawns (§4 Spawn batch), so spawn count is sub-linear in claim count. Wall-time is ~max(spawn-time) because the batch is parallel. Sampling reintroduces the miss the pass eliminates. |
+| "Verifying every cited claim is too many spawns — sample the load-bearing ones." | The claim set is already pre-bounded to the seven kinds §3 extracts, and claims that share code already share spawns (§4 Spawn batch), so spawn count is sub-linear in claim count. Sampling reintroduces the miss the pass eliminates. |
 | "A verifier said the claim looks consistent — that's a confirm." | "Looks consistent" is a paraphrase, not evidence. The output contract requires a literal quote from the cited file. Refuse the paraphrase-only verdict and re-prompt — the evidence standard forbids reasoning-as-evidence. |
 | "In implement mode a claim is refuted, so I'll just fix the spec and keep going." | Fixing it is the user's call, not yours: fire the AskUserQuestion and let them choose proceed / correct / abort. A correction made unasked is the silent rewrite the mode forbids — it re-opens a signed-off artifact with nobody seeing the change. When the user DOES elect one, it is bounded to the refuted and clarified facts and re-enters this helper per §8.5. The helper verifies facts; the user owns the design either way. |
 | "The implement-mode pass came back clean — I'll surface a confirmation question anyway." | A question with nothing to decide is noise and breaks the always-WAIT-restraint norm. On a clean pass, emit the silent advisory line and proceed. Reserve the AUQ for a real refuted-claim-or-blocking-risk decision. |
@@ -236,7 +236,7 @@ On a clean implement-mode pass, the final line is the only user-visible output: 
 | "The chosen approach may not be the best one — generate two competitors here and score them head-to-head." | Not this pass's job (§5). The caller's approach phase already searched the field with the user present and a codebase-grounded critic weighing feasibility; by here the user has picked an approach and approved the sections resting on it. Competitors invented at the last gate re-open a settled decision on a rubric rather than on evidence, and cost the most on exactly the runs that need this pass least. A `re-plan` still fires — off a refuted load-bearing claim or a blocking red-team finding. |
 | "The red-team found a risk but I can't pin it to a file:line — report it anyway." | A red-team finding without a concrete anchor (file:line or a §4 result) is a hypothesis. Unanchored findings inflate the defect count and erode trust in the verdict. Anchor it or drop it. |
 | "Pass the full spec to each verifier so it has complete context." | Shared context anchors verifiers toward agreement — the documented multi-judge failure mode. Each verifier sees ONLY its own cluster's claims (§4 Spawn batch) plus its isolated evidence per claim — cited slice, call graph, sibling tests. Independence is load-bearing. |
-| "I can settle this claim faster by reading the cited lines myself than by spawning a verifier." | You wrote the claim, so you pick the span that shows it — and a span chosen to display a fact rarely contains the branch that refutes it. Observed twice: a 19-line window anchored on the cited line, excluding the short-circuit eight lines above that decided the behavior; and a self-check reporting "all three confirmed" on a passage that says the opposite of what the claim asserted, which then hardened into a `forbidden_actions` entry. A verifier reading cold picks its own span. Speed is not the constraint here — every claim in the batch verifies in parallel. |
+| "I can settle this claim faster by reading the cited lines myself than by spawning a verifier." | You wrote the claim, so you pick the span that shows it — and a span chosen to display a fact rarely contains the branch that refutes it. Observed twice: a 19-line window anchored on the cited line, excluding the short-circuit eight lines above that decided the behavior; and a self-check reporting "all three confirmed" on a passage that says the opposite of what the claim asserted, which then hardened into a `forbidden_actions` entry. A verifier reading cold picks its own span. |
 | "The claim is about something outside the code, so there is nothing to verify against." | External state is where the most expensive wrong claims live — what shipped, what is live, what has ever been deployed. Check the repo's own evidence for it (a submit config, a lockfile, a committed native directory) and the project's declared `## Data Sources` before exempting anything. Record a genuinely unreachable fact as `unverified` and carry it into §6 as a risk; an exemption is a verdict of last resort, not a category. |
 
 ## 11. Definition of Done

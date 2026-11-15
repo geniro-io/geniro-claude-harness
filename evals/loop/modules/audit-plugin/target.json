@@ -13,15 +13,6 @@
       ]
     },
     {
-      "name": "staleness",
-      "criteria": [
-        "D3-staleness.md",
-        "severity-tiers.md",
-        "output-contract.md",
-        "do-not-flag.md"
-      ]
-    },
-    {
       "name": "rules",
       "criteria": [
         "D4-rules.md",
@@ -37,25 +28,6 @@
       "name": "logic",
       "criteria": [
         "D5-logic.md",
-        "severity-tiers.md",
-        "output-contract.md",
-        "do-not-flag.md"
-      ]
-    },
-    {
-      "name": "simplicity",
-      "criteria": [
-        "D6-simplicity.md",
-        "rule-skill-prose.md",
-        "severity-tiers.md",
-        "output-contract.md",
-        "do-not-flag.md"
-      ]
-    },
-    {
-      "name": "numbers",
-      "criteria": [
-        "D7-numbers.md",
         "severity-tiers.md",
         "output-contract.md",
         "do-not-flag.md"
@@ -98,11 +70,6 @@
     },
     {
       "from": ".claude/skills/audit-plugin/dimensions-reference.md",
-      "section": "D3 — Stale rules & dead references",
-      "to": "criteria/D3-staleness.md"
-    },
-    {
-      "from": ".claude/skills/audit-plugin/dimensions-reference.md",
       "section": "D4 — Authoring-rules compliance",
       "to": "criteria/D4-rules.md"
     },
@@ -110,16 +77,6 @@
       "from": ".claude/skills/audit-plugin/dimensions-reference.md",
       "section": "D5 — Logic & syntax correctness",
       "to": "criteria/D5-logic.md"
-    },
-    {
-      "from": ".claude/skills/audit-plugin/dimensions-reference.md",
-      "section": "D6 — Over-complication & instruction bloat",
-      "to": "criteria/D6-simplicity.md"
-    },
-    {
-      "from": ".claude/skills/audit-plugin/dimensions-reference.md",
-      "section": "D7 — Magic numbers & duplicated constants",
-      "to": "criteria/D7-numbers.md"
     },
     {
       "from": ".claude/skills/audit-plugin/dimensions-reference.md",
@@ -160,11 +117,11 @@
     }
   ],
   "screen_facets": [
-    "staleness",
+    "consistency",
     "logic",
     "safety",
     "wiring"
   ],
   "noise_floor": 2.75,
-  "noise_floor_note": "UPPER BOUND, not a clean measurement. EXP-012 measured 2.75/task over four dev tasks, one of which (plugin-neg-1) was a mis-specified negative control carrying four real defects — the correct answer on it was non-empty, so both arms' findings there were legitimate and scored as noise. A contaminated task inflates this band, which makes verdicts insensitive rather than wrong: nothing is promoted that should not be. Re-measure on the repaired fixture before reading a near-threshold result."
+  "noise_floor_note": "UPPER BOUND, not a clean measurement. EXP-012 measured 2.75/task over four dev tasks, one of which (plugin-neg-1) was a mis-specified negative control carrying four real defects — the correct answer on it was non-empty, so both arms' findings there were legitimate and scored as noise. A contaminated task inflates this band, which makes verdicts insensitive rather than wrong: nothing is promoted that should not be. Measured on the previous screen set (with staleness); re-measure for the consistency facet and on the repaired fixture before reading a near-threshold result."
 }

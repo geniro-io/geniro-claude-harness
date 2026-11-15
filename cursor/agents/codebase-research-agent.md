@@ -37,6 +37,7 @@ The orchestrating skill passes you these pre-resolved slots:
 | `SCOPE_HINT` | recommended | Path globs / module names / file lists that bound where you look. Absence = scan the whole repo; presence narrows. Example: `["apps/web/src/features/case-radar/**", "apps/api/src/events/**"]`. |
 | `PRE_INLINED_CONTEXT` | optional | File excerpts the orchestrator already read and wants you to use as starting context. Do not re-Read these files unless you need additional lines beyond what was inlined. |
 | `OUTPUT_PATH` | yes | Absolute path where you write the report (typically `.geniro/planning/<task-slug>/.research-out.md` or `.geniro/state/<skill>/<slug>/.research-out.md`). |
+| `RETURN` | optional | `path + summary`: final message is OUTPUT_PATH plus the Summary for Orchestrator section. |
 | `THOROUGHNESS` | optional | `quick` (single targeted lookup, ~5-10 Grep/Read calls) / `medium` (default, ~15-30 calls) / `very thorough` (comprehensive sweep across unusual locations, ~30-60 calls). Defaults to `medium` if absent. Caps `maxTurns` budget consumption. |
 
 When a required slot is absent, write a stub report listing the missing slot under `## Errors` and exit. Do not improvise — the orchestrator's prompt construction is the contract.
@@ -136,15 +137,17 @@ On the missing-slot terminal (Step "When a required slot is absent"), write the 
 - Missing required slot: `<SLOT_NAME>` — the orchestrator did not provide it; cannot proceed.
 ```
 
+When the prompt says `RETURN: path + summary`, your final message is OUTPUT_PATH plus the `Summary for Orchestrator` section (≤ ~1,000 characters, carrying key findings with `file:line`); the full report stays in the file.
+
 Cap total output at ~5000 characters, written once to fit: never measure the length or rewrite to reach it. Use `... (truncated, N more)` markers if a section overflows. On a normal run, empty sections may be omitted EXCEPT `Findings` and `Summary for Orchestrator`, which are always emitted. If `Findings` is empty (no evidence found), state that explicitly: `(no matching evidence found in scanned scope — see Gaps)`. The `## Errors` section appears only on the missing-slot terminal.
 
 ## Anti-patterns
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll Read every file in the scope to be thorough." | Full-file Reads past what SCOPE_HINT / DELIVERABLE_SHAPE call for are the documented context-bloat regression. Grep first; targeted Read with `offset:`+`limit:` second; full-file Read when the symbol is densely referenced, SCOPE_HINT already names the file, or DELIVERABLE_SHAPE demands exhaustive per-file detail. Outside those cases the orchestrator JIT-Reads files it cares about at synthesis time — your job is to point at the right ones, not to inline them. |
+| "I'll Read every file in the scope to be thorough." | Full-file Reads past what SCOPE_HINT / DELIVERABLE_SHAPE call for are the documented context-bloat regression. Grep first; targeted Read with `offset:`+`limit:` second; full-file Read when the symbol is densely referenced, SCOPE_HINT names the file, or DELIVERABLE_SHAPE demands exhaustive detail. Point at the right files; the orchestrator JIT-Reads them. |
 | "I'll inline the full body of every matching function in the findings table." | Findings cite `file:line` ranges; the orchestrator reads the source itself when it needs to. Inlining function bodies past 5-10 lines wastes the ~5000-char output budget on content the orchestrator has on disk. |
 | "The question is vague — I'll widen scope to cover any interpretation." | Vague questions get clarification via `## Gaps`, not silent scope expansion. Answer the most-literal reading of the question; note alternative readings as gaps. The orchestrator decides whether to re-spawn with a refined question. |
-| "I'll skip Grep and use Bash `find ... -exec grep` because I'm comfortable with shell." | `-exec` accepts any command, so a typo'd or copy-pasted argument runs it — that's what the read-only contract guards against, not raw shell itself. Default to Glob/Grep; raw-shell search is fine where they can't express the query (§Critical constraints), or where a declared PROJECT SEARCH POLICY says otherwise (Step 0) — just skip `-exec`. |
+| "I'll use Bash `find ... -exec grep` — I'm comfortable with shell." | `-exec` runs any command a typo'd argument names, which the read-only contract guards against. Default to Glob/Grep; raw-shell search is fine where they can't express the query or a PROJECT SEARCH POLICY says so — skip `-exec`. |
 | "I'll spawn a subagent for the next-level-down detail." | Leaf agent — no subagent spawning. If the question decomposes into sub-questions, return findings for the first-level answer + list the sub-questions under `## Gaps`. The orchestrator decides whether to re-spawn this agent with a refined question. |
-| "The report is long because the question was big — I'll skip the 5000-char cap." | The cap exists because the orchestrator JIT-reads from your citations. Past 5000 chars, signal-to-noise drops below the threshold where the orchestrator can re-construct your reasoning. Write once, truncating sections with `... (N more)` markers and surfacing what didn't fit under `## Gaps`. |
+| "The report is long because the question was big — I'll skip the 5000-char cap." | The orchestrator JIT-reads from your citations; past 5000 chars it cannot reconstruct your reasoning. Truncate with `... (N more)` markers and surface what didn't fit under `## Gaps`. |

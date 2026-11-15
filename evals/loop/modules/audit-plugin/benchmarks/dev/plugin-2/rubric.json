@@ -57,7 +57,7 @@
       "file": "README.md",
       "lines": [12, 14],
       "class": "multi-homed-constant",
-      "dimension_hint": "numbers",
+      "dimension_hint": "consistency",
       "severity": "MEDIUM",
       "must_find": false,
       "description": "The retry limit 3 is stated in four places: lib/config.sh:15 as the code default, skills/audit/SKILL.md:20, README.md:12 in the settings table, and README.md:14 again in prose. One value, four homes, no single source — they agree today and drift on the first change."

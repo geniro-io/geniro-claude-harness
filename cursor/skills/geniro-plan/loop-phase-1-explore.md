@@ -28,7 +28,7 @@ At Phase 1 entry, load **L4 + L3 + L2** (full tier, NOT rules-only):
 
 On a fresh run (skip on compaction-resume), before research spawns apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`, so the spec is grounded in fresh code; skip silently only when `BEHIND == 0`.
 
-The update is an offer, never auto-run — an unasked merge moves the user's HEAD. Fire that file's update-default or catch-up question verbatim when behind; before any action that moves HEAD, run `git status --porcelain`, and any output chains its unsaved-work question first. Append the pick and resolved `behind` count to `approvals[]` (category `branch_freshness`) via `atomic_state_append_list_item`.
+The update is an offer, never auto-run — a merge moves the user's HEAD. Fire that file's update-default or catch-up question verbatim when behind; before any action that moves HEAD, run `git status --porcelain`, and any output chains its unsaved-work question first. Append the pick and resolved `behind` count to `approvals[]` (category `branch_freshness`) via `atomic_state_append_list_item`.
 
 A `freshness:merge` / `freshness:rebase` / `freshness:skip` modifier in `$ARGUMENTS` (§0.1) answers the question: apply that strategy directly (`freshness:skip` means do not update), with the same dirty-tree check and `approvals[]` entry; a real conflict still surfaces interactively per `branch-freshness.md`.
 
@@ -43,9 +43,9 @@ Detect effort tier from $ARGUMENTS shape using `${CLAUDE_PLUGIN_ROOT}/skills/_sh
 | Medium (a feature, or a change that touches a contract / boundary) | 2 agents (existing-impl + integration-surface) |
 | Big (a hard escalation signal is present, or the Big dimension-score band per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`) | 3-4 agents (subsystem-A + subsystem-B + cross-cutting + conventions) |
 
-Spawn `codebase-research-agent` for each primary Phase 1 facet per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. Facet-specific slot values: `RESEARCH_QUESTION` = the facet's research goal; `DELIVERABLE_SHAPE` = `"table of [{file, lines, observation}] verified findings"`; `SCOPE_HINT` = the facet's path globs; `OUTPUT_PATH` = `<task-dir>/.research-<facet>.md`; `THOROUGHNESS` = `medium` (default) or `very thorough` for Big-tier subsystem facets.
+Spawn `codebase-research-agent` for each primary Phase 1 facet per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. Facet-specific slot values: `RESEARCH_QUESTION` = the facet's research goal; `DELIVERABLE_SHAPE` = `"table of [{file, lines, observation}] verified findings"`; `SCOPE_HINT` = the facet's path globs; `OUTPUT_PATH` = `<task-dir>/.research-<facet>.md`; `THOROUGHNESS` = `medium`, or `very thorough` only for a facet whose Tool log entry states why (e.g. a subsystem with no prior map and many entry points); `RETURN: path + summary`.
 
-When `$ARGUMENTS` carries a tracker reference, finish §1.4 first — it produces the "TASK CHAIN CONTEXT" block these spawns receive as added context. Then issue all spawns `run_in_background: true` in a single assistant response (Shape A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md` — the orchestrator fires code-independent grill questions per §3.1 during the wait; the drain is §1.5). Per-spawn output schema: `[{file, lines, observation}]`; cap ~4000 chars (truncate with marker) — this section is that cap's single home, cited rather than restated at the other `/geniro:plan` sites.
+When `$ARGUMENTS` carries a tracker reference, finish §1.4 first — it produces the "TASK CHAIN CONTEXT" block these spawns receive as added context. Then issue all spawns `run_in_background: true` in a single assistant response (Shape A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md` — fire code-independent grill questions per §3.1 during the wait; drain per §1.5). Each spawn writes its full report (`[{file, lines, observation}]`) to `OUTPUT_PATH` and returns only the path plus a ≤ ~1,000-char summary of key findings with `file:line`; Read the file for detail. This section is that cap's single home.
 
 ### 1.3 Echo contract
 
@@ -63,15 +63,15 @@ The tracker stays read-only — never mutate the parent or siblings — and ever
 
 ### 1.5 Transition to Phase 2
 
-**Drain the backgrounded explore agents first.** Before synthesizing, confirm every §1.2 explore spawn returned — Read each `<task-dir>/.research-<facet>.md`, or resume the agent by ID if an output is missing. Read each report for its `Context loaded:` line and act on an `unreadable` or missing one, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report.
+**Drain the backgrounded explore agents first.** Before synthesizing, confirm every §1.2 explore spawn returned — Read each `<task-dir>/.research-<facet>.md`, or resume the agent by ID if an output is missing. Check each report for its `Context loaded:` line, acting on an `unreadable` or missing one per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report.
 
-Model synthesizes findings into a brief inline summary held in context (no separate artifact). The summary feeds Phase 2 UI trigger detection, Phase 3 question generation, and Phase 5 section authoring.
+Synthesize findings into a brief inline summary held in context. It feeds Phase 2 UI trigger detection, Phase 3 question generation, and Phase 5 section authoring.
 
-**Prior-work scan.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/prior-work-scan.md` against the topic this run is about to plan — already named by `$ARGUMENTS` or the resolved tracker ref, so it falls inside the read-only carve-out `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` §Forbidden discovery moves allows for a named target. On a hit, §4 owns the gate shape; persist the pick under `category: prior_work_scan` via `atomic_state_append_list_item` and fold it into the summary above so it reaches Phase 4 approach design before any approach is proposed.
+**Prior-work scan.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/prior-work-scan.md` against the topic this run is about to plan — a named target, inside the read-only carve-out of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` §Forbidden discovery moves. On a hit, §4 owns the gate shape; persist the pick under `category: prior_work_scan` via `atomic_state_append_list_item` and fold it into the summary above so it reaches Phase 4 approach design before any approach is proposed.
 
 **Custom post-explore steps.** Run the user-authored steps under `### After explore` in the plan custom-instructions file loaded at §1.1 (anchor per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Producer contract), each bullet as an imperative in order, honoring any `AskQuestion` it prescribes. They run against the mapped codebase and before the transition write, so a step that changes what the plan is about still reaches Phase 3's questions and Phase 4's approaches. Skip silently when no such subsection is loaded.
 
-**Transition.** Resolve the Trivial skip below before evaluating the §2.1 UI trigger, then write the `phase:` of the phase actually being entered — Trivial skip → Phase 4; UI trigger matches → Phase 2; neither → Phase 3 (each phase's enum is in the spine §Phase files table). Leaving `phase:` on a phase this step just decided to skip sends a compaction-resume back into it.
+**Transition.** Resolve the Trivial skip below before evaluating the §2.1 UI trigger, then write the `phase:` of the phase actually being entered — Trivial skip → Phase 4; UI trigger matches → Phase 2; neither → Phase 3 (each phase's enum is in the spine §Phase files table). A stale `phase:` sends a compaction-resume back into a skipped phase.
 
 **Visual plan artifact.** When `artifact_mode: true`, Read `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-artifact-call-sites.md` now — it holds the first publish and every later call site. When `artifact_mode` is unset, skip that file and treat every **Artifact** line in the phase files as a no-op.
 

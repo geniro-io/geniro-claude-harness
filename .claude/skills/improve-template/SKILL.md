@@ -26,9 +26,9 @@ You are the orchestrator for investigating and fixing issues in the Geniro plugi
 
 ## Loop invariants
 
-1. **Spawn every batch of parallel agents in ONE assistant response.** Phase 1's up-to-three research agents, Phase 4's implementation agents, and any Phase 3b re-research round all serialize into full per-agent wall-clock latency if split across turns.
+1. **Spawn every batch of parallel agents in ONE assistant response.** Phase 1's up-to-three research agents and Phase 4's implementation agents all serialize into full per-agent wall-clock latency if split across turns.
 2. **Review is always a fresh agent that saw neither the research nor the implementation prompt.** Phase 5 Step 1, the Phase 5 Step 3 pre-existing-bug re-review, and the create-skill Phase C review all depend on anchoring-free eyes — reusing an agent from an earlier phase defeats the check it exists to run.
-3. **The Phase 3 evidence gate is a WAIT: proceed only on an explicit answer, never an assumed one.** Phase 2b's filter and the Phase 3b challenge loop both feed findings back into this same gate rather than around it.
+3. **The Phase 3 evidence gate is a WAIT: proceed only on an explicit answer, never an assumed one.** Phase 2b's filter feeds findings into this same gate rather than around it.
 4. **Never implement a change directly beyond a 1-2 line, unambiguous fix.** A larger or ambiguous change — in any phase, not only Phase 4 — goes through an implementation subagent; the orchestrator coordinates, agents edit.
 5. **Mid-flow user input folds into the current phase; it never restarts the pipeline.** Corrections/context fold into the current phase (note in the checkpoint); preferences apply at the next decision point; blockers halt the phase and ask how to proceed; new issues are noted and queued for after the current pipeline completes.
 
@@ -36,7 +36,7 @@ You are the orchestrator for investigating and fixing issues in the Geniro plugi
 **Architecture path:** `ARCHITECTURE.md` (consolidated design decisions from all milestones + operational rules)
 **Authoring rules:** `.claude/rules/skill-structure.md` (file-size limits, section ordering, reference graph) and `.claude/rules/skill-prose.md` (voice, rule placement) govern every skill / agent file this pipeline writes. §File-size limits is the single source for the word budgets, what counts as overflow, and the never-trim-load-bearing-content clause — cite that section everywhere, never restate its numbers, and give subagents the repo-relative path plus an explicit instruction to read it before editing.
 
-**Phase bodies.** This file is the spine — role, invariants, gates, phase map. **Read the phase's Steps on entry to that phase**, from `.claude/skills/improve-template/`: `phase-1-3-investigate-present.md` (Phases 1-3) · `phase-4-6-implement-review.md` (Phases 4-6). That Read is the phase's physically-first action, per `skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates (including the Phase 3 evidence gate and the Phase 3b challenge loop) and their spawn templates, so work started before the Read runs outside them.
+**Phase bodies.** This file is the spine — role, invariants, gates, phase map. **Read the phase's Steps on entry to that phase**, from `.claude/skills/improve-template/`: `phase-1-3-investigate-present.md` (Phases 1-3) · `phase-4-6-implement-review.md` (Phases 4-6). That Read is the phase's physically-first action, per `skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates (including the Phase 3 evidence gate) and their spawn templates, so work started before the Read runs outside them.
 
 **After a compaction:** re-Read the phase file for whatever phase is running before continuing it — only the front-loaded prefix re-attaches, so a mid-phase summary can drop the Steps while leaving this spine intact. If which phase was running is also gone, re-invoke `/improve-template` with the same argument — the §State persistence checkpoint makes that a resume, not a re-run.
 
@@ -191,7 +191,7 @@ Steps: `phase-1-3-investigate-present.md` §Phase 2b (continued from the Phase 1
 
 ## PHASE 3: PRESENT TO USER (WAIT)
 
-Steps: `phase-1-3-investigate-present.md` §Phase 3 (continued from the Phase 1 Read above), including the Phase 3b challenge-resolution loop. Show evidence-backed findings and get approval before any changes.
+Steps: `phase-1-3-investigate-present.md` §Phase 3 (continued from the Phase 1 Read above). Show evidence-backed findings and get approval before any changes.
 
 ---
 

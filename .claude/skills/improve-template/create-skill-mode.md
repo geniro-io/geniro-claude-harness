@@ -62,4 +62,4 @@ Process review results per the existing Phase 5 routing (Blockers → fresh fix 
 
 ### Phase D: Report & commit (reuse Phase 6)
 
-Same Phase 6 as improve-existing-skill mode; Step 4 (Cleanup) is a no-op.
+Same Phase 6 as improve-existing-skill mode; Step 3 (Cleanup) is a no-op.

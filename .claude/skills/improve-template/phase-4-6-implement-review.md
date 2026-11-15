@@ -6,7 +6,7 @@ Phase body for `.claude/skills/improve-template/SKILL.md`. Read on entry to Phas
 
 - Phase 4 — Implement (delegated)
 - Phase 5 — Self-review (fresh subagent)
-- Phase 6 — Report, learn & complete (Definition of done · Summary · verification proposal · learnings · cleanup · ship)
+- Phase 6 — Report, learn & complete (Definition of done · Summary · learnings · cleanup · ship)
 - Description-format validator (Phase 4 Step 3 extension)
 
 ---
@@ -149,7 +149,7 @@ If no issues in either category: report "LGTM — all checks passed"
 ### Step 2: Process review results
 
 **Introduced issues** (from the current changes):
-- **Blockers:** Spawn a fresh fix agent (not the implementer). Then re-review with another fresh agent. Max 1 fix round.
+- **Blockers:** Spawn a fresh fix agent (not the implementer), then one re-review by another fresh agent that sees only the fix diff and the findings it answers. No further rounds: anything still open goes to Phase 6 as a list, and the user can start a new run. When the re-review again finds layered edge cases in machinery this pass added beyond the approved set, remove that machinery and keep the approved change minimal.
 - **Warnings:** Multi-select `AskUserQuestion` (header: `"Warnings"`, chaining past the question tool's option cap), mirroring `.claude/skills/audit-plugin/phase-5-action-gate.md`'s pick path — apply the ones picked, ship the rest as-is.
 - **Nits:** Apply if trivial, skip if subjective.
 - **LGTM:** Proceed to Step 3.
@@ -198,7 +198,7 @@ These are the load-bearing exit gates — the checks that, if skipped, ship an u
 - [ ] Every implemented change traces to a finding the user approved at the Phase 3 evidence gate — no scope creep, and no evidence-free finding survived Phase 2's filter
 - [ ] Every spawned and every skipped research source is in `research-sources:` with its one-line reason
 - [ ] The Phase 4 Step 3 validation gate ran on every changed SKILL.md, including the description-format sub-checks
-- [ ] A fresh agent reviewed the changes in Phase 5 and passed them, and its subtraction report reached the Phase 6 summary — a pass that removed nothing said so and justified it
+- [ ] A fresh agent reviewed the changes in Phase 5, anything still open is listed under Still open, and its subtraction report reached the Phase 6 summary — a pass that removed nothing said so and justified it
 - [ ] The state file is cleaned up, `tests/run-all.sh` passed, and commit-and-push was offered to the user rather than performed unasked
 
 #### create-skill mode
@@ -226,33 +226,21 @@ Present to the user:
 ### Removed by this pass
 [what the pass subtracted, per Phase 5 checklist item 7 — or "nothing removed" plus the reviewer's justification]
 
-### Verification status
-[per change: tested / measured / unmeasured-by-choice — from Step 2]
+### Still open
+[findings the Phase 5 re-review left open, or "none"]
+
+Verification status: unmeasured / tested
 ```
 
-### Step 2: Propose how to verify what landed
-
-The pass has evidence that its files changed and none that its changes work. Close that gap explicitly: classify every landed change into one of three kinds, render the table below, and offer the verifications that exist. Never claim a change is verified because the pipeline's own gates were green — lint and the reference checks prove the edit is well-formed, not that it does anything.
-
-| Kind | What landed | How it gets decided |
-|---|---|---|
-| **Deterministic** | A hook, a `lib/` helper, a script, a validator, a parser, a path or schema contract | A test case. Name the suite file it belongs in and the case: the input that reproduces the old behavior, and the assertion that fails without this change. |
-| **Behavioral** | Skill or agent prose that changes what a run finds, checks, or decides | A measured run — `/eval-loop` against the module the prose belongs to. Name the module, the task class the change targets, and that the screen is paid. |
-| **Neither** | Docs, naming, a structural move, a cross-reference repair | Say so in one line. Inventing a test for a rename is worse than admitting the change rides on review alone. |
-
-Then one `AskUserQuestion` offering only the kinds this pass actually produced: write the tests now / start the measurement now / ship unverified and record it. A behavioral change shipping unverified is legitimate — most do — but it ships named as unmeasured, so the next pass over that file knows the prose was never shown to work.
-
-**A behavioral instruction edit is a hypothesis, not a fix.** `.claude/rules/skill-prose.md` §"What adding instructions buys" carries what such edits reliably do and do not buy; a pass that added one and skipped the measurement has produced a candidate, and the summary says candidate.
-
-### Step 3: Extract learnings to memory
+### Step 2: Extract learnings to memory
 
 Scan for user corrections, convention discoveries, and limitations encountered. Before writing, check if existing memory already covers the topic — update rather than duplicate. Skip if nothing novel was discovered.
 
-### Step 4: Cleanup
+### Step 3: Cleanup
 
 `rm -rf .geniro/state/improve-template/<slug>/` — the whole slug directory, per `skills/_shared/within-skill-state-handoff.md` § Cleanup contract — plus this run's two Phase 1 research reports (`.research-architecture-<slug>.md`, `.research-codebase-<slug>.md`). Delete only the current branch's slug; never glob across slugs.
 
-### Step 5: Suggest commit & push
+### Step 4: Suggest commit & push
 
 After cleanup, run `bash tests/run-all.sh` — CI gates on it, so a red suite here is a red pull request. If a suite fails, report which one and stop; the ship options are not offered on a red suite. Otherwise show the user what is currently staged versus unstaged, then use the `AskUserQuestion` tool to offer shipping the changes:
 

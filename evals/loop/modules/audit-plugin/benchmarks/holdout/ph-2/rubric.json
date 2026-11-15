@@ -57,7 +57,7 @@
       "file": "docs/GUARDS.md",
       "lines": [14, 16],
       "class": "multi-homed-constant",
-      "dimension_hint": "numbers",
+      "dimension_hint": "consistency",
       "severity": "LOW",
       "must_find": false,
       "description": "The retry count lives in lib/retry.sh:9 as the loop bound and again in GUARDS.md prose as \"retries twice\". One value, two homes, no single source."

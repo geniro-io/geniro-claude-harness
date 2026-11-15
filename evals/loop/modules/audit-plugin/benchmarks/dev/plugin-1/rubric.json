@@ -7,7 +7,7 @@
       "file": "skills/deploy/SKILL.md",
       "lines": [26, 26],
       "class": "dangling-reference",
-      "dimension_hint": "staleness",
+      "dimension_hint": "consistency",
       "severity": "HIGH",
       "must_find": true,
       "description": "Phase 0 instructs reading skills/_shared/rollback-contract.md before proceeding. No such file exists — skills/_shared/ holds only state-write.md. The step cannot run, and the phase's stated precondition is unobtainable."
@@ -37,7 +37,7 @@
       "file": "skills/deploy/SKILL.md",
       "lines": [38, 38],
       "class": "stale-reference",
-      "dimension_hint": "staleness",
+      "dimension_hint": "consistency",
       "severity": "MEDIUM",
       "must_find": true,
       "description": "Phase 3 hands off to /geniro:promote for the manual completion walk. No such skill exists in the repo, and README's Skills-deleted mapping does not list it either — so this is a live pointer at nothing, not documentation of a removal."

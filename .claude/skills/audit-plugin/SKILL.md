@@ -29,14 +29,14 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 3. **Phase 2 — Parallel dimension reviewers.** Spawn one reviewer per selected dimension (D5 splits into markdown + shell) in ONE response, within the §Budgets spawn cap.
 4. **Phase 3 — Merge, verify, filter.** Dedupe, count convergence, re-read every cited line, drop unverifiable and do-not-flag items, assign tiers.
 5. **Phase 4 — Report.** Write `design/scratch/plugin-audit-<YYYY-MM-DD>.md` (health summary → tier tables → per-dimension verdicts → highest-value fix) and summarize in chat.
-6. **Phase 5 — Action gate.** AskUserQuestion: fix now / pick / report only. Approved fixes go through implementation subagents, then the mechanical battery re-runs to verify. Cleanup + commit offer.
+6. **Phase 5 — Action gate.** AskUserQuestion: fix now / pick / report only. Approved fixes go through implementation subagents, then the mechanical battery re-runs to verify. Cleanup; fixes committed when a fix option was chosen.
 
 ## Loop invariants
 
 The shared audit-pipeline invariants apply in full — `skills/_shared/audit-pipeline.md` §Shared invariants. This skill binds their three parameterized ones and adds one of its own:
 
 - **Do-not-flag list** (the do-not-flag-list invariant) = `dimensions-reference.md` §Do-not-flag list.
-- **Subtraction sweep** (the subtraction-sweep invariant) = D6, which spawns on every run — full, path-scoped, single-dimension, and `--quick`.
+- **Subtraction sweep** (the subtraction-sweep invariant) = Phase 3's orchestrator-inline sweep for whole mechanisms, which runs on every run — full, path-scoped, single-dimension, and `--quick`.
 - **Whole mechanism** (the no-blanket-deletion invariant) = a phase, gate, step, spawn, dimension, or helper; walk these per `dimensions-reference.md` §Deletion gate.
 
 S1. **Caps are guidelines** per `dimensions-reference.md` §Do-not-flag list.
@@ -53,15 +53,14 @@ S1. **Caps are guidelines** per `dimensions-reference.md` §Do-not-flag list.
 | "The user said audit everything — I'll include design/ and evals/." | Out of default scope: `design/scratch/` holds historical reports (auditing them re-litigates closed findings) and evals/ has its own harness. Include only when `$ARGUMENTS` names them. |
 | "Phase 5 fixes failed re-verification — I'll run another fix round." | Budget: 1 round. A second silent round compounds unreviewed changes on unreviewed changes. Surface what failed and let the user decide. |
 | "There are 80 findings — I'll show tier counts and link the report." | A count hides the exact edits the user is authorizing. Phase 4 renders every finding before the gate — the visible set must equal the approvable set. |
-| "This instruction reads fine — leave it." | Reading fine is not the bar: a live rule can still cost more than it buys — a fixed threshold where a criterion would do, an example that narrows, a guardrail written for a weaker model. D6 hunts those, not only redundancy. |
-| "This mid-run pick isn't one of Phase 5's four options — I'll settle it in chat" | The tiered action pick, the per-item deletion walk, and the commit-and-push offer are this skill's gates, not the complete set — route every user-facing choice through `AskUserQuestion` (`skills/_shared/gate-rendering.md` §Lean-question conventions). |
+| "This mid-run pick isn't one of Phase 5's four options — I'll settle it in chat" | The tiered action pick and the per-item deletion walk are this skill's gates, not the complete set — route every user-facing choice through `AskUserQuestion` (`skills/_shared/gate-rendering.md` §Lean-question conventions). |
 
 ## Budgets
 
 | Budget | Value |
 |---|---|
-| Reviewer spawns per batch | one spawn per selected dimension (D5 splits into markdown + shell) + shard splits, hard cap 12 spawns; shards count against the cap, and a sharded D6's extra cross-file-checks spawn (`dimensions-reference.md` §Reviewer spawn template — D6 sharding) counts as one more; scoped runs spawn only the relevant subset. The cap exists because Phase 3 re-reads every spawn's table by hand — a full audit's dimension list (Phase 0 Step 1's enumeration, below; D1 runs inline, D5 always splits into two) already leaves little headroom to shard further, so when a run's scope would push another dimension past the split threshold, that dimension stays a single unsharded spawn (a larger read for one reviewer) rather than breaching the cap |
-| Shards per dimension | ≤2 line-balanced shards, both in the same batch, plus D6's unsharded cross-file-checks spawn when D6 itself shards; split threshold per `dimensions-reference.md` §Reviewer spawn template |
+| Reviewer spawns per batch | one spawn per selected dimension (D5 splits into markdown + shell) + shard splits, hard cap 12 spawns; scoped runs spawn only the relevant subset. The cap exists because Phase 3 re-reads every spawn's table by hand; a dimension that would breach it stays one unsharded spawn |
+| Shards per dimension | ≤2 line-balanced shards, both in the same batch; split threshold per `dimensions-reference.md` §Reviewer spawn template |
 | Findings per reviewer | ranked by impact; cap per `dimensions-reference.md` §Finding output contract |
 | Fix rounds at Phase 5 | 1 (failed re-verification escalates to the user, not a second silent round) |
 | Reviewer re-spawn on malformed output | 1 retry, then proceed with what parsed |
@@ -76,11 +75,11 @@ All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers ar
 
 1. **Parse `$ARGUMENTS`:**
    - Empty → full audit (all dimensions, full inventory).
-   - `--quick` → Phase 1 battery only; skip Phases 2-3; Phases 4-5 still run on the machine findings (the action gate and cleanup apply regardless of depth), running the D6 sweep orchestrator-inline over the run's scope with no reviewer spawned.
-   - A path (`skills/review`, `hooks/`, `lib/`) → restrict every dimension's scope to files under it; spawn only dimensions whose scope intersects, plus D6 scoped to the same path.
-   - A dimension name (`consistency`, `staleness`, `rules`, `logic`, `shell`, `simplicity`, `numbers`, `safety`, `wiring`) → spawn that reviewer, plus the Phase 1 battery (which always runs) and D6, unless `simplicity` already names it.
+   - `--quick` → Phase 1 battery only; skip Phases 2-3; Phases 4-5 still run on the machine findings (the action gate and cleanup apply regardless of depth), running the Phase 3 subtraction sweep over the run's scope.
+   - A path (`skills/review`, `hooks/`, `lib/`) → restrict every dimension's scope to files under it; spawn only dimensions whose scope intersects.
+   - A dimension name (`consistency`, `rules`, `logic`, `shell`, `safety`, `wiring`) → spawn that reviewer, plus the Phase 1 battery (which always runs).
 
-   D6's sweep runs on every one of these — spawned as a reviewer on full and scoped runs, orchestrator-inline on `--quick` — per the subtraction-sweep invariant.
+   The Phase 3 subtraction sweep runs on every one of these, scoped likewise, per the subtraction-sweep invariant.
 2. **Load the rubric:** Glob `.claude/rules/*.md` and Read every match, plus `.claude/skills/audit-plugin/dimensions-reference.md`, in full — Phase 2 pastes its sections into every reviewer prompt verbatim. Glob rather than a fixed list, so a rule file added later is still applied. Also read `skills/_shared/audit-pipeline.md` — the shared reviewer schema pasted into every prompt, and the Phase 5 fix-round discipline.
 3. **Build the inventory and write the state checkpoint**
 per `dimensions-reference.md` §Run setup — the scope enumeration and the checkpoint's frontmatter contract live there. Checkpoint after every phase.
@@ -91,16 +90,16 @@ Run the full D1 battery from `dimensions-reference.md` §D1 — tests, authoring
 
 Sort the results into:
 - **Machine findings** — deterministic failures with tier per the D1 table.
-- **Candidate lists** — pasted into the reviewer prompt of the dimension each one feeds (D3, D6, D7, D8, D9 per the D1 table). A dimension with an enumerable surface and no seed under-performs: the reviewer spends its budget rediscovering what a grep already knew.
+- **Candidate lists** — pasted into the reviewer prompt of the dimension each one feeds (D2, D8, D9 per the D1 table). A dimension with an enumerable surface and no seed under-performs: the reviewer spends its budget rediscovering what a grep already knew.
 - **Context notes** — battery summary pasted into every reviewer prompt ("tests green, lint warns on X, shellcheck advisory on Y") so reviewers don't re-derive it.
 
-If `--quick`: run the D6 subtraction sweep orchestrator-inline over the run's scope (per the subtraction-sweep invariant — no reviewer spawned), then jump to Phase 4 with machine findings plus that sweep's output.
+If `--quick`: run the Phase 3 subtraction sweep over the run's scope (per the subtraction-sweep invariant), then jump to Phase 4 with machine findings plus that sweep's output.
 
 ## PHASE 2 — Parallel dimension reviewers
 
 Spawn the selected reviewers in ONE response. Each prompt is self-contained — reviewers must not need to discover their own rubric. Spawn template, the per-dimension notes, and the sharding rule: `dimensions-reference.md` §Reviewer spawn template — you are already reading that file to paste each reviewer's rubric sections, so it costs no extra load here.
 
-Collect all outputs. If a reviewer returns prose instead of the table, re-spawn once with "return ONLY the table"; on second failure, salvage what parses and note the gap in the report. Persist each reviewer's table to `.geniro/state/audit-plugin/<slug>/findings-<reviewer>.md` (via `atomic_state_write`), where `<reviewer>` is the spawn's unique label — the dimension id, its split halves (`D5a`/`D5b`), its shards (`D4-shardA`/`D4-shardB`), or D6's unsharded cross-file spawn (`D6-crossfile`) — so no two spawns share a filename and overwrite each other. Record the paths in the checkpoint — this is what makes resume after compaction possible without re-spawning, and what the Phase 5 cleanup deletes.
+Collect all outputs. If a reviewer returns prose instead of the table, re-spawn once with "return ONLY the table"; on second failure, salvage what parses and note the gap in the report. Persist each reviewer's table to `.geniro/state/audit-plugin/<slug>/findings-<reviewer>.md` (via `atomic_state_write`), where `<reviewer>` is the spawn's unique label — the dimension id, its split halves (`D5a`/`D5b`), or its shards (`D4-shardA`/`D4-shardB`) — so no two spawns share a filename and overwrite each other. Record the paths in the checkpoint — this is what makes resume after compaction possible without re-spawning, and what the Phase 5 cleanup deletes.
 
 ## PHASE 3 — Merge, verify, filter
 
@@ -112,7 +111,8 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 
    Then ask of every survivor in executable code: **is this one site of a class?** If so, the `fix` column names the test that keeps the class closed, and Phase 5 builds it with the fix (§Mechanize what recurs).
 5. **Cold-verify the critical tiers.** Every finding still T0 or T1 after calibration gets one independent verdict from a `finding-verifier-agent` spawn (ladder per `skills/_shared/spawn-agent.md`, OMIT `model=`); same-file findings cluster into one spawn. Input contract, cluster shape, and anti-sycophancy guards per `skills/_shared/finding-verification.md` §2 / §4 / §6, treating the audit finding as the finding. Refuted → move to Filtered with the verdict reason; clarified → amend the row; skip the step when no T0/T1 survives. Step 2 catches fabricated citations; this step catches real quotes carrying wrong conclusions — the tiers that drive the "fix safety + correctness now" recommendation are the ones a false positive costs most.
-6. Checkpoint: counts per tier, filtered count, verifier verdicts.
+6. **Subtraction sweep (orchestrator-inline).** Sweep the run's scope for whole mechanisms that may not earn their place, and propose each that clears the bar in `dimensions-reference.md` §Deletion gate, seeded by the Phase 1 no-execution-site candidates. Record what you examined and every candidate you rejected with the reason; zero proposals is a valid result.
+7. Checkpoint: counts per tier, filtered count, verifier verdicts.
 
 ## PHASE 4 — Report
 
@@ -123,7 +123,7 @@ Write `design/scratch/plugin-audit-<YYYY-MM-DD>.md` via Write (`design/scratch/`
 3. **Tier tables T0→T4** — columns: `# | file:line | issue | fix | effort`; convergence noted inline.
 4. **Per-dimension verdicts** — the reviewers' 2-3-sentence verdicts, edited for consistency.
 5. **Filtered** — dropped findings with one-line reasons (transparency; keeps future runs from re-litigating).
-6. **Subtraction sweep** (the subtraction-sweep invariant) — always present, even when empty: what D6 examined, and every candidate it considered and rejected with the reason. Mechanism-level proposals list separately from text ones and carry inline the evidence §Deletion gate renders, so the user reads it before the gate rather than for the first time inside it.
+6. **Subtraction sweep** (the subtraction-sweep invariant) — always present, even when empty: what the sweep examined, and every candidate it considered and rejected with the reason. Mechanism-level proposals list separately from text ones and carry inline the evidence §Deletion gate renders, so the user reads it before the gate rather than for the first time inside it.
 7. **Single highest-value fix** — one paragraph naming it and why.
 
 On `--quick` runs, omit section 4 and the convergence notes — no reviewers ran, so neither exists; state "mechanical pre-pass only" in the header instead. Section 6 still appears, carrying the orchestrator-inline sweep.
@@ -151,6 +151,6 @@ The run-completion checklist is `.claude/skills/audit-plugin/audit-plugin-defini
 - `skills/_shared/within-skill-state-handoff.md` — slug rules, producer/consumer/cleanup contracts
 - `skills/_shared/audit-pipeline.md` — shared reviewer finding schema + fix-round discipline
 - `tests/run-all.sh` + `tests/authoring/lint-skills.sh` — the D1 battery core
-- `scripts/measure-run-load.sh [--detail] <profile>` — what one run actually loads, in words, per component and with per-spawn multipliers. The cost evidence a D6 mechanism-level-subtraction deletion proposal cites instead of asserting one
+- `scripts/measure-run-load.sh [--detail] <profile>` — what one run actually loads, in words, per component and with per-spawn multipliers. The cost evidence a deletion proposal cites instead of asserting one
 - `skills/_shared/per-finding-question.md` / `gate-rendering.md` — the message-first render plus lean question the Phase 5 deletion gate fires
 - `scripts/dump-md.sh [path ...]` — full-content markdown dump (filename header + complete body per tracked file); reviewers survey their markdown scope with it instead of grep
