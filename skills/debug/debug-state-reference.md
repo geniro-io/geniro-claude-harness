@@ -80,7 +80,7 @@ Body sections (Scientific Mode):
 - `## Reproduction Steps`
 - `## Feedback Loop` (Original command — un-minimised, as first run / Command — the minimised form / Expected output / Actual output / Re-run cost / Determinism — includes any rate-raising attempt + outcome for intermittent bugs)
 - `## Hypotheses` (Hypothesis / Evidence For / Evidence Against / Status / Test Plan / Result per hypothesis)
-- `## Root Cause` (Validation: confirmed | unverified / Verification-evidence — written by §1.6's independent verification)
+- `## Root Cause` (Validation: confirmed | unverified / Verification-evidence — written by §1.6 — the independent verification, or the artifact-skip branch)
 - `## Proposed Fix`
 - `## Reproduction Test`
 - `## Accepted Limitations` (optional, path B)

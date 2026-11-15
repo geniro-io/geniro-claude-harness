@@ -698,7 +698,10 @@ _render_approvals_block() {
     | _content(.classes_shown) as $classes_shown
     | _content(.why) as $why
     | _content(.result) as $result
-    | "  - [\(.category // "?")] User picked: \"\(.picked // "?")\"\n      (asked in phase: \(.asked_in_phase // "?") · at: \(.at // "?"))"
+    | (if .source == "default" then "Default taken"
+       elif (.source == "launch_config" or .source == "arguments") then "Pre-set"
+       else "User picked" end) as $verb
+    | "  - [\(.category // "?")] \($verb): \"\(.picked // "?")\"\n      (asked in phase: \(.asked_in_phase // "?") · at: \(.at // "?"))"
       + (if $classes_shown != "" then "\n      classes_shown: \($classes_shown)" else "" end)
       + (if $why != "" then "\n      why: \($why)" else "" end)
       + (if $result != "" then "\n      result: \($result)" else "" end)

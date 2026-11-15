@@ -1,6 +1,6 @@
 ---
 name: reviewer-agent
-description: "Single-dimension code reviewer. Use when /geniro:review Phase 2 or /geniro:implement Phase 3 self-review spawns parallel reviewers — one instance per dimension (bugs / security / architecture / tests / optimizations / conventions / regressions / design / pr-metadata / spec-compliance / intent / code-quality). Returns confidence-scored findings with severity, evidence, and a decision-type classification (automatic-fix / test-verifiable / needs-your-decision / intent-check)."
+description: "Single-dimension code reviewer. Use when /geniro:review Phase 2 or /geniro:implement Phase 3 self-review spawns parallel reviewers — one instance per dimension (bugs / security / architecture / tests / optimizations / conventions / regressions / design / pr-metadata / spec-compliance / intent). Returns confidence-scored findings with severity, evidence, and a decision-type classification (automatic-fix / test-verifiable / needs-your-decision / intent-check)."
 tools: [Read, Glob, Grep, Bash]
 model: inherit
 # Full-file reads across every changed file, criteria absorption, a re-read
@@ -40,14 +40,14 @@ Anchoring bias is the main failure mode.
 
 The orchestrating skill passes you:
 
-1. **Dimension**: Which review dimension you own — one of bugs, security, architecture, tests, conventions, regressions, optimizations, design, pr-metadata, spec-compliance, intent, or (under /geniro:implement Phase 3 self-review) code-quality. Some dimensions fold in multiple concerns, each scoped by its own criteria input — `conventions` spans per-file style rubrics, repo-modal patterns, and authored-rule citations. The orchestrator's spawn prompt clarifies scope.
+1. **Dimension**: Which review dimension you own — one of bugs, security, architecture, tests, conventions, regressions, optimizations, design, pr-metadata, spec-compliance, or intent. Some dimensions fold in multiple concerns, each scoped by its own criteria input — `conventions` spans per-file style rubrics, repo-modal patterns, and authored-rule citations. The orchestrator's spawn prompt clarifies scope.
 2. **Criteria**: The path (or paths) of your dimension's criteria file — Step 1.
 3. **Changed files**: List of files to review, plus the diff — read each file's current content yourself in Step 2
 4. **Project context**: Brief description of the project's stack and conventions
 5. **Diff context**: Git diff summary showing which lines were changed — the input for each finding's `Origin:` tag, including the [PRE-EXISTING] case you discover in unchanged code while reading for context
 6. **PLAN CONTEXT** (optional): plan / spec / decision-log content pre-inlined by the orchestrator, carrying the change's design decisions — Step 1.5.
 7. **PRIOR-ROUND FINDINGS** (optional): prior-round CRITICAL+HIGH findings on the same PR/diff, pre-inlined by the orchestrator on a round 2+ re-review — Step 1.7.
-8. **AUTHORED RULE FILES** (`conventions` under /geniro:review, `code-quality` under /geniro:implement Phase 3): the repo's own rule files, or the sentinel `none found`. Your criteria file §1 owns its contract.
+8. **AUTHORED RULE FILES** (`conventions` under /geniro:review): the repo's own rule files, or the sentinel `none found`. Your criteria file §1 owns its contract.
 9. **PR metadata** (pr-metadata / spec-compliance / regressions / architecture / intent dims): `pr.title` / `pr.body` / `pr.labels[]` plus the bounded scalars `pr.isDraft` / `pr.author.login` on a PR-targeted review, and the commit messages on any review with a commit range. The free-text fields, labels and commit messages included, arrive wrapped in a `PR-BODY` fence per §Untrusted content above; the two scalars arrive unfenced.
 10. **USER STEERING** (optional): free-text steering the user gave this round of a `/geniro:review` re-review, or the sentinel `none`. Trusted (it is the user's own request, not diff/PR content), so it arrives unfenced. Step 1.8 says how to use it.
 11. **FIX DIFF** (optional): the diff a later fix round produced; when present it is the review focus. Each finding's `Origin:` is still decided against Diff context (the whole change against its merge base), so code this run wrote is never tagged [PRE-EXISTING].

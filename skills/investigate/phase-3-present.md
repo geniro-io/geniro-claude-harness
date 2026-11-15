@@ -36,7 +36,7 @@ Copy the template for the question type (How / Why / What-if / Compare / Risk) f
 
 ### Step 2: Fresh verifier agent
 
-Spawn a fresh verifier agent to verify the draft answer. This agent must NOT have seen the research prompts — it reviews with fresh eyes; it spawns as `general-purpose` directly, per §Subagent spawn contract (OMIT `model=`). Full spawn template (acceptance criteria, pre-inlined-files convention, 6-item verification checklist, output schema) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3.
+Spawn a fresh verifier agent to verify the draft answer. It must NOT have seen the research prompts; it spawns as `general-purpose` directly, per §Subagent spawn contract (OMIT `model=`). Full spawn template (acceptance criteria, pre-inlined-files convention, 6-item verification checklist, output schema) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3.
 
 #### Process review results:
 - **Blockers**: Fix the answer (orchestrator corrects directly — these are text edits, not code).
@@ -44,7 +44,7 @@ Spawn a fresh verifier agent to verify the draft answer. This agent must NOT hav
 - **Nits**: Apply if they improve clarity.
 - **Verified**: Proceed to Step 3.
 
-If blockers are found, fix and re-verify with another fresh agent. **Max 1 re-review round** — track the count in your own scratchpad; at the limit, present what you have to the user with the remaining blockers flagged, and stop.
+If blockers are found, fix, then re-verify with another fresh agent that receives the full corrected draft (in the template's Draft answer slot) with the changed sections marked, plus the findings they answer. Scope its checks to the marked sections; the rest was verified in round 1. **Max 1 re-review round** — at the limit, present with the remaining blockers flagged.
 
 ### Step 3: Present + Sources + Open questions
 

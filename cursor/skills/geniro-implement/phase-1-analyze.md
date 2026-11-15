@@ -44,7 +44,7 @@ Collect every signal below by its command, not by inference — an ad-hoc `git s
 
 #### 0b — Decide action
 
-Decision tree (first match wins; evaluate top-down) — under Mode WORK-BASE of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md` §3. Only rules 1-3 skip the question, each on a mechanical signal — a spec that names the branch, a settled ticket slug, or a default that looks plainly right is not a fourth exit, since none says whether the user wants a worktree, this branch, or that slug (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/approval-scope.md`: reversibility is not the test):
+Decision tree (first match wins; evaluate top-down) — under Mode WORK-BASE of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md` §3. Rules 1-3 skip the question on a mechanical signal. Rule 5 on a clean tree and rule 6 with no concurrent activity take a default without asking, since neither leaves work behind (a worktree is cut from the default-branch tip, so it strands the continuing branch's commits and uncommitted changes); every other case asks. Each taken default is announced in one plain line (0c):
 
 ```
 1. Resumable state.md exists for resolved task slug
@@ -82,10 +82,10 @@ Decision tree (first match wins; evaluate top-down) — under Mode WORK-BASE of 
       Workflow Question 2 omitted (mismatch hint suggests confusion; don't pile on).
 
 5. IN_WORKTREE == false AND PROTECTED_BRANCH == true
-   ⇒ Fire the full workspace AUQ (0c) with "Git worktree (Recommended)". A continuing signal does not auto-continue here: the current branch is protected, and starting work on it in place is exactly the outcome this AUQ exists to check with the user. The worktree carries the recommendation because it is the only option that leaves the protected checkout on its branch — `git checkout -b` still mutates the tree the user is standing in. This also covers the contested-tree case rules 3 and 6 flip to a worktree for, so rule 5 needs no CONCURRENT_ACTIVITY branch.
+   ⇒ A continuing signal does not auto-continue here: the current branch is protected, and starting work on it in place is the outcome to avoid. On a clean tree (`git status --porcelain` empty) take "Git worktree" by default — the only option that leaves the protected checkout on its branch, since `git checkout -b` still mutates the tree the user is standing in. With uncommitted changes (the user may want them carried onto a branch, which a worktree does not do), fire the full workspace AUQ (0c) with "Git worktree (Recommended)".
 
 6. IN_WORKTREE == false, PROTECTED_BRANCH == false, no continuing signals
-   ⇒ Fire the full workspace AUQ (0c). Recommendation flips: "Current branch (Recommended)" since the user is on a feature branch already — unless CONCURRENT_ACTIVITY is set, in which case it is "Git worktree (Recommended)".
+   ⇒ With no CONCURRENT_ACTIVITY, take "Current branch" by default, since the user is on a feature branch already; the announcement line names the branch. When CONCURRENT_ACTIVITY is set, fire the full workspace AUQ (0c) with "Git worktree (Recommended)".
 ```
 
 On any AUTO-CONTINUE path (rule 2, and rule 3 when it auto-continues), apply 0e item 1's Mode FRESH-CONTINUE handling (an offer, never auto-run) right after the continue echo, before Phase 1 begins; skip it silently when the branch is already current, and entirely on a compaction-resume.
@@ -111,7 +111,7 @@ Before firing this AUQ, read `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-r
 
 Single `AskQuestion` call carrying up to 4 questions (always-WAIT, never auto-resolve). When a spec `launch_config` pre-answered a question (Step 0g), drop that question from the batch — the pre-set is its answer; if `launch_config` pre-answers every question that would otherwise fire, the AUQ does not fire at all.
 
-**Question 1 — always asked when rules 3, 5, or 6 fire** (header: `"Workspace"`) — offers "New feature branch" / "Current branch" / "Git worktree", un-suffixed in the template. Append ` (Recommended)` to the one the fired 0b rule names, and fire with exactly one so the set is never rudderless. Template: reference §"Phase 1: Step 0c setup-question templates".
+**Question 1 — asked when rule 3 or 6 fires with CONCURRENT_ACTIVITY set, or rule 5 fires on a dirty tree** (header: `"Workspace"`) — offers "New feature branch" / "Current branch" / "Git worktree", un-suffixed in the template; append ` (Recommended)` to "Git worktree", exactly one. Template: reference §"Phase 1: Step 0c setup-question templates". When rule 5 fires on a clean tree or rule 6 with no concurrent activity, no question fires: the pick is the rule's option, a `launch_config` `workspace` value or inline modifier beating it. Announce it in one plain line before acting (`Using <option> — <reason>. Override with a workspace modifier.`) and hold it as an `implement_workspace_setup` entry with `source: default`.
 
 **No-ticket-ID sub-flow.** When BRANCH_FORMAT_RULE requires a ticket prefix AND `TICKET_ID_IN_SCOPE` is empty, chain a sub-AUQ BEFORE Question 1 fires (or BEFORE the worktree command when Question 1 already resolved to a branch or worktree) — options: provide the ticket ID inline / use a placeholder slug (`<type>/no-ticket-<desc>`, renameable later) / cancel (terminal, no git mutation); literal template in the same reference section. There is no "create the ticket for me" option: /geniro:implement never creates tracker artifacts (§Anti-rationalization (Phase 1) below).
 
@@ -119,7 +119,7 @@ Single `AskQuestion` call carrying up to 4 questions (always-WAIT, never auto-re
 
 A spec `launch_config.tracker_status` (Step 0g) pre-answers this question, still subject to the block's status gate (a pre-set `move-to-in-progress` is skipped when the task is already In Progress); it is a no-op with no tracker ref in scope and fail-open when the MCP is unavailable (warn, proceed without the transition).
 
-A batch over 4 questions — `1` (workspace, when rules 3, 5, or 6 fire) + `N` (workflow) — chains a second AUQ.
+A batch over 4 questions — `1` (workspace, per Question 1's trigger) + `N` (workflow) — chains a second AUQ.
 
 #### 0d — Approvals-persistence
 
@@ -139,7 +139,7 @@ Resolved by the table in reference §"Phase 1: Step 0 setup detail" (workflow MC
 
 When `SPEC_LAUNCH_CONFIG` is non-empty, apply its fields per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` (enum values and per-field semantics live there; the field → decision map is in reference §"Phase 1: Step 0 setup detail"): each pre-answers one setup question, which then does not fire. An absent block leaves every setup question interactive. Two deltas the schema does not own:
 
-1. `workspace` does NOT override an auto-continue / resume signal — when rules 1-3 already skip the workspace question, that path wins.
+1. `workspace` does NOT override an auto-continue / resume signal — when rules 1-3 already skip the workspace question, that path wins. It does replace a rule 5 or 6 default.
 2. Record applied choices in `approvals[]` as interactive answers would be — `implement_workspace_setup`, `ship_mode`, and, when `tracker_status` was set, `implement_workflow_status` — each with `source: launch_config`, so a compaction-resume re-applies them without re-asking.
 
 `launch_config` pre-answers SETUP questions only; the safety gates stay Always-WAIT (`launch-config-schema.md` §"Doctrine boundary — setup only, never safety").
