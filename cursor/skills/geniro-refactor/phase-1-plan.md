@@ -49,17 +49,17 @@ On Phase 1 entry, in order:
 4. **Read project convention files** referenced in CLAUDE.md.
 5. **Baseline validation** — run the project's validation suite once (read command from CLAUDE.md). Capture as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. Outcomes:
 - **Red:** state.md → `phase: plan-escalated` via `atomic_state_set_field`, then `AskQuestion` header "Baseline" — "Fix the broken tests first (stop refactoring)" / "Proceed anyway — existing failures are out of scope (risky)". Default: stop. On "Fix the broken tests first (stop refactoring)": state.md → `phase: aborted` (terminal) via `atomic_state_write` with a `## Termination reason` line naming the red baseline, then run `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md` §3.7 Cleanup. On "Proceed anyway — existing failures are out of scope (risky)": state.md → `phase: plan`, note the accepted red baseline in `## Baseline`, and continue to step 6.
-- **No tests exist:** escalate immediately — "Cannot refactor safely without tests. Use `/geniro:implement` to add coverage first." state.md → `phase: routed` (terminal).
+- **No tests exist:** escalate immediately — "Cannot refactor safely without tests. Use `/geniro:implement` to add coverage first." state.md → `phase: routed` (terminal) with a `## Termination reason` line naming the missing tests, then §3.7 Cleanup.
 - **Green:** record passing-state fingerprint (test count) in state.md `## Baseline` body section; proceed.
-6. **Coverage check on the symbols in scope.** Check whether each function/symbol in scope has at least one test exercising it — the zero-behavior-change guarantee is only as strong as the tests locking current behavior. A gap is the "new tests required to cover untested code" hard signal in §1.3.2; carry it there rather than authoring the missing test here, because a test authored now would be a characterization test that passes on current code (not a test-first cycle), and §1.3.2 lets the user decide whether the symbol belongs in scope at all. If every scope-symbol already has coverage, skip silently.
+6. **Coverage check on the symbols in scope.** Check whether each function/symbol in scope has at least one test exercising it — the zero-behavior-change guarantee is only as strong as the tests locking current behavior. A gap is the "new tests required to cover untested code" hard signal in §1.3.2; carry it there rather than authoring the missing test here, because a test authored now only characterizes current code, and §1.3.2 lets the user decide whether the symbol belongs in scope at all. If every scope-symbol already has coverage, skip silently.
 
 ### 1.3 Tier classification (canonical effort-scaling)
 
-**Apply the canonical effort-scaling rubric** from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`: Step 1 (hard signals) → Step 2 (5-dim score) → Step 3 (tier behavior). Refactor-specific hard signals apply orthogonally — they escalate OUT of /geniro:refactor entirely.
+**Apply the canonical effort-scaling rubric** from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`: Step 1 (hard signals) → Step 2 (5-dim score) → Step 3 (tier behavior). Refactor-specific hard signals escalate out of /geniro:refactor entirely.
 
 #### 1.3.1 Apply canonical effort-scaling
 
-1. **Steps 1-2 (canonical):** run the hard-escalation-signal check (Step 1) and the dimension score → tier band (Step 2) exactly as defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`. Any hard signal forces Big; otherwise the score band sets the tier (Trivial / Small / Medium / Big). effort-scaling.md is the single source. Persist the resulting tier to state.md frontmatter `effort_tier` via `atomic_state_set_field` before proceeding to Step 3 — Phase 3 §3.2's tier gate reads it back, and a compaction would otherwise force a re-derivation.
+1. **Steps 1-2 (canonical):** run the hard-signal check and the dimension score as defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — a hard signal forces Big, otherwise the score band sets the tier (Trivial / Small / Medium / Big). Persist the resulting tier to state.md frontmatter `effort_tier` via `atomic_state_set_field` before proceeding to Step 3 — Phase 3 §3.2's tier gate reads it back.
 2. **Step 3 (refactor-specific tier behavior):**
 
 | Tier | Refactor behavior |
@@ -71,7 +71,7 @@ On Phase 1 entry, in order:
 
 #### 1.3.2 Refactor-specific hard escalation signals (escalate OUT — orthogonal to effort-scaling)
 
-These 4 refactor-specific signals are orthogonal to the canonical effort-scaling tier. Any present → state.md `phase: plan-escalated` via `atomic_state_set_field`, then escalation AUQ "Scope" — "Escalate to suggested skill" / "Proceed anyway (treat as Big)" / "Reduce scope". Default: Escalate. On "Escalate" pick → state.md `phase: routed` (terminal). On "Proceed anyway (treat as Big)" → state.md `phase: plan`, continue §1.3.1's Big-tier pipeline. On "Reduce scope" → drop the flagged item from scope (or narrow `$ARGUMENTS`), state.md `phase: plan`, and re-run scope discovery (§1.2) from step 1.
+These 4 refactor-specific signals are orthogonal to the canonical effort-scaling tier. Any present → state.md `phase: plan-escalated` via `atomic_state_set_field`, then escalation AUQ "Scope" — "Escalate to suggested skill" / "Proceed anyway (treat as Big)" / "Reduce scope". Default: Escalate. On "Escalate" pick → state.md `phase: routed` (terminal) with a `## Termination reason` line naming the escalation, then §3.7 Cleanup. On "Proceed anyway (treat as Big)" → state.md `phase: plan`, continue §1.3.1's Big-tier pipeline. On "Reduce scope" → drop the flagged item from scope (or narrow `$ARGUMENTS`), state.md `phase: plan`, and re-run scope discovery (§1.2) from step 1.
 
 | Signal | Routing target |
 |---|---|
@@ -162,4 +162,4 @@ If no smell is KEEP (Medium+), report that the run found nothing worth refactori
 
 If all steps are LOW/MEDIUM: present the plan summary in chat and proceed (no AUQ).
 
-state.md transitions: `plan` → `apply` once approval complete. `## Plan` body section with full plan; `## Persisted approvals` rendered from `approvals[]`.
+Write `## Plan` (full plan) and `## Plan steps` — one row per step in `phase-2-apply.md` §2.2's schema, `status: pending` — then transition `plan` → `apply` once approval completes. `## Persisted approvals` rendered from `approvals[]`.

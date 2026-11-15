@@ -544,6 +544,21 @@ else
   fail "deep-walk sanitization corrupted a control-plane key: $deep_entry"
 fi
 
+# access_count (bumped by record_access) must not defeat dedup: an identical
+# re-emit after a counter bump is a no-op, not a superseding duplicate line.
+new_sandbox
+# shellcheck disable=SC1091
+source "$REPO_ROOT/lib/query-learnings.sh"
+entry='{"producer":"/debug","scope":"src/ac","summary":"access count dedup","tags":["bug"],"dedup_key":"ac-1"}'
+echo "$entry" | emit_learning
+record_access ac-1 >/dev/null 2>&1
+echo "$entry" | emit_learning
+if [ "$(log_line_count)" -eq 1 ] && [ "$(jq -r '.access_count' "$SANDBOX_DIR/.geniro/knowledge/learnings.jsonl")" = "1" ]; then
+  pass "identical re-emit after record_access is a dedup no-op"
+else
+  fail "re-emit after record_access appended a line (lines=$(log_line_count))"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

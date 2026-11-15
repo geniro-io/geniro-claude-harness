@@ -9,7 +9,7 @@ state.md `phase: propose`. Output authoring: text fix proposal + F→P reproduct
 ## Contents
 
 - §2.1 Refresh custom instructions on entry · §2.2 Multi-path fix gate (Always-WAIT) · §2.3 Text fix proposal
-- §2.4 Author F→P reproduction test + monkey-patch verify · §2.5 Fix-loop escalation
+- §2.4 Author the reproduction test, then verify the fix with a monkey-patch · §2.5 Fix-loop escalation
 - Tool surface
 
 ### 2.1 Refresh custom instructions on entry
@@ -35,7 +35,7 @@ If the confirmed root cause has more than one valid fix path with real trade-off
 
 Persist to state.md `## Proposed Fix` body section.
 
-### 2.4 Author F→P reproduction test + monkey-patch verify
+### 2.4 Author the reproduction test, then verify the fix with a monkey-patch
 
 **Author the reproduction as a unit/integration test in the project's test framework**, placed at the project's normal test path next to the source it covers. Detect framework + naming convention from CLAUDE.md Essential Commands + an exemplar test file. Scripts / curl / ad-hoc queries are NOT acceptable substitutes — they get deleted at Cleanup and leave no regression guard.
 
@@ -58,11 +58,11 @@ Do NOT run the full project test suite here — that's the receiving skill's res
 When 2 distinct fix proposals fail F→P verification (each pre/post-fix monkey-patch round counts as one), surface to user:
 
 1. Do **not** silently report "no fix works".
-2. Render the two failed attempts to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — what each attempt changed and what still fails, in plain words, then a `**Technical detail:**` block per attempt with the evidence cites and the failing output (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers) — then the lean `AskQuestion` with header "Fix-fail" and options:
+2. Before the render and question, write `phase: phase-2-escalated` via `atomic_state_write` with timestamp + fix-attempt count + accumulated test outputs; the session-start restore re-surfaces the open question on resume.
+3. Render the two failed attempts to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — what each attempt changed and what still fails, in plain words, then a `**Technical detail:**` block per attempt with the evidence cites and the failing output (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers) — then the lean `AskQuestion` with header "Fix-fail" and options:
 - **Try different approach** — go back to (Hypothesize) with a fresh angle. state.md transitions back to `phase: investigate`.
 - **Accept as documented limitation** — proceed to Phase 3 ship sub-step with `## Accepted Limitations` block in state.md body. state.md transitions to `phase: ship`. Receiving skill sees the unresolved limitation in the findings summary.
 - **Abort** — `phase: aborted` (terminal).
-3. state.md marks `phase: phase-2-escalated` with timestamp + fix-attempt count + accumulated test outputs. The session-start restore re-surfaces the open question on resume.
 
 **Record a past learning on fix-loop exit.** When Phase 2 exits AND `fix_attempts ≥ 2`, call `emit-learning` with type=`retry_failure_sequence`, trust=`verified`, required `ext.{phase: "fix-attempts", attempts: [{round: N, failure: "<why this attempt did not verify>"}], resolution}`. `resolution` ∈ `{passed, escalated, aborted}` (passed = test confirmed fix; escalated = user picked "Try different approach" or "Accept as documented limitation"; aborted = terminal). Sliding-window cap per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Sliding-window caps on bookkeeping types, which owns the window size and the flip-then-append order. Single-attempt exits (fix_attempts == 1) do NOT emit. Scope = the file/module the fix targeted.
 

@@ -123,7 +123,7 @@ What to NOT flag:
 <!-- append the Verification-Surface stub below -->
 ```
 
-**Data-Sources stub** — the single copy. Append it verbatim under the `## Data Sources` heading of the `global` and per-skill scaffolds (not `code-style` or `review-extra`, which are rules-only / criteria-only) so users discover the verification primitive. Leave the entries commented — an empty block is the safe default.
+**Data-Sources stub** — the single copy. Append it verbatim under the `## Data Sources` heading of the `global`, `plan`, `implement`, `review`, `resolve`, `debug`, `investigate` scaffolds, the skills that read the block, so users discover the verification primitive. Leave the entries commented — an empty block is the safe default.
 
 ```markdown
 <!-- Optional. Read-only sources to cross-check load-bearing facts against (task statuses, the spec's cited claims). Commands have to be read-only — the verification step runs them unattended. Contract: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md -->
@@ -131,7 +131,7 @@ What to NOT flag:
 <!-- - **deploy-state** (confirms: did it ship?) — MCP tool `mcp__deploys__get_release_state` -->
 ```
 
-**Verification-Surface stub** — the single copy, appended verbatim under the `## Verification Surface` heading of the same two scaffolds (`global` and per-skill), on the same commented-by-default basis. Both clauses are required per entry: the does-not-cover half is what bounds how wide a claim about a green run may be stated, and it is the half a reader cannot derive from the command name.
+**Verification-Surface stub** — the single copy, appended verbatim under the `## Verification Surface` heading of the `global`, `implement`, `review`, `debug`, `investigate`, `refactor` scaffolds (the skills applying the evidence standard), on the same commented-by-default basis. Both clauses are required per entry: the does-not-cover half is what bounds how wide a claim about a green run may be stated, and it is the half a reader cannot derive from the command name.
 
 ```markdown
 <!-- Optional. One bullet per check: the command, the ground it covers, and the ground it does NOT cover. A MANUAL row names ground no command reaches. Contract: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-surface.md -->

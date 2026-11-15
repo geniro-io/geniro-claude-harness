@@ -159,7 +159,7 @@ Then tag: FILTER if CONTRADICTS (redundant), OVER-ENGINEERED (not needed), or MA
 - [finding] — filtered because [redundant with <file:line> | over-engineering for current scope | matches the rejection in <out-of-scope record>]
 
 ### Implementation plan
-For each finding: which files change, what changes, estimated line impact.
+For each finding: which files change, what changes, projected net word delta.
 ```
 
 ### Step 2: Ask for approval
@@ -168,6 +168,7 @@ Use the `AskUserQuestion` tool — a plain-text option list bypasses the approva
 - **Question:** "How should I proceed with these findings?"
 - **Options (use these exactly):**
   - "Implement all findings" — every KEEP finding becomes the Phase 4 approved set
+  - "Implement all, approving the word growth" — offered only when the projected delta is positive
   - "Let me pick which ones to implement" — walk the findings as multi-select `AskUserQuestion` calls (chaining past the question tool's option cap), mirroring `.claude/skills/audit-plugin/phase-5-action-gate.md`'s pick path; the findings picked become the Phase 4 approved set
 
 A user who disagrees in free text gets the table re-presented with the evidence they dispute re-checked. A user who reopens a finding the rejection check filtered gets the Phase 2b reopen step.

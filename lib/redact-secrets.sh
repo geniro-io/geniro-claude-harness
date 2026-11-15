@@ -66,7 +66,7 @@ _red_is_ignored() {
   sj=$(_red_safety_json)
   [ -z "$sj" ] && return 1
   jq -e --arg n "$name" \
-    '(.redaction.ignore_patterns // []) | index($n)' \
+    'any((.redaction.ignore_patterns // [])[]?; . == $n)' \
     "$sj" >/dev/null 2>&1
 }
 

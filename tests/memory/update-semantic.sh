@@ -473,6 +473,50 @@ else
   echo "SKIP: zsh not available — update_semantic zsh check skipped."
 fi
 
+# ---------------------------------------------------------------------------
+# Audit 2026-11-15 fixes
+# ---------------------------------------------------------------------------
+
+# T1-4: a failing append under the caller's `set -e` must still release the lock.
+new_sandbox
+big=$(head -c 5000 /dev/zero | tr '\0' 'x')
+set +e
+( set -e; update_semantic --file codebase-map --append "$big" >/dev/null 2>&1; true )
+set -e
+if [ ! -e .geniro/planning/.codebase-map.lock ]; then
+  set +e; update_semantic --file codebase-map --append "- after" >/dev/null 2>&1; rc=$?; set -e
+  if [ "$rc" -eq 0 ]; then pass "oversized append under set -e releases the lock; next call succeeds"
+  else fail "next call after set -e append failure returned rc=$rc"; fi
+else
+  fail "oversized append under set -e left the lock behind"
+fi
+
+# T1-5: empty --replace prefix is rejected (rc 64) and leaves the file unchanged.
+new_sandbox
+printf 'line one\nline two\n' > .geniro/planning/_CODEBASE_MAP.md
+set +e; update_semantic --file codebase-map --replace "" "CLOBBER" >/dev/null 2>&1; rc=$?; set -e
+if [ "$rc" -eq 64 ] && [ "$(cat .geniro/planning/_CODEBASE_MAP.md)" = "$(printf 'line one\nline two')" ] \
+   && [ ! -e .geniro/planning/.codebase-map.lock ]; then
+  pass "empty --replace prefix returns 64, file unchanged, lock released"
+else
+  fail "empty --replace prefix: rc=$rc content='$(cat .geniro/planning/_CODEBASE_MAP.md)'"
+fi
+
+# T4-29: the caller's INT/TERM traps survive update_semantic (append and replace).
+new_sandbox
+trap 'echo caller-int' INT
+trap 'echo caller-term' TERM
+pre_int=$(trap -p INT); pre_term=$(trap -p TERM)   # INT may be untrappable in a background job
+update_semantic --file codebase-map --append "- keep traps" >/dev/null 2>&1
+update_semantic --file codebase-map --replace "- keep" "- kept traps" >/dev/null 2>&1
+int_trap=$(trap -p INT); term_trap=$(trap -p TERM)
+trap - INT TERM
+if [ "$int_trap" = "$pre_int" ] && [ "$term_trap" = "$pre_term" ] && [ -n "$pre_term" ]; then
+  pass "update_semantic restores the caller's INT/TERM traps"
+else
+  fail "update_semantic clobbered caller traps: INT='$int_trap' TERM='$term_trap'"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

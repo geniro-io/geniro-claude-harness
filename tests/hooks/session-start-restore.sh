@@ -1994,6 +1994,36 @@ _geniro_lock_reclaim_secs")
 fi
 
 # ---------------------------------------------------------------------------
+# 21. Large learnings log: the coverage jq must stay linear (splits("\n") took
+#     ~8s at 2k entries and ~33s at 4k, past the hook's 10s timeout), and a
+#     malformed line (archiver rc>=2) must surface the archiver's first stderr
+#     line in the systemMessage instead of being dropped.
+# ---------------------------------------------------------------------------
+sandbox=$(new_sandbox)
+mkdir -p "$sandbox/.geniro/knowledge"
+_pad="$(printf 'x%.0s' $(seq 1 700))"
+awk -v pad="$_pad" 'BEGIN{for(i=1;i<=2000;i++) printf "{\"producer\":\"/debug\",\"scope\":\"x\",\"summary\":\"%s\",\"tags\":[\"bug\"],\"type\":\"diagnosis\",\"ts\":\"2026-05-01T00:00:00Z\",\"trust\":\"verified\",\"dedup_key\":\"k%d\"}\n", pad, i}' \
+  > "$sandbox/.geniro/knowledge/learnings.jsonl"
+_t0=$(date +%s)
+sm=$(run_hook startup "$sandbox" | jq -r '.systemMessage // ""')
+_t1=$(date +%s)
+if [ "$((_t1 - _t0))" -lt 5 ] && grep -q '2000/2000' <<<"$sm"; then
+  pass "2000-entry learnings log: hook finishes in $((_t1 - _t0))s with the coverage suffix"
+else
+  fail "2000-entry learnings log: took $((_t1 - _t0))s, sm='$sm' (quadratic jq?)"
+fi
+
+# Malformed line + count above the auto-archive threshold -> archiver rc 2.
+printf '%s\n' '{"producer":"/debug","scope":"x","summary":"old","tags":["bug"],"type":"diagnosis","ts":"2020-01-01T00:00:00Z","trust":"inferred","access_count":0,"recurrence_count":1,"dedup_key":"stale1"}' 'this is not json' >> "$sandbox/.geniro/knowledge/learnings.jsonl"
+sm=$(printf '{"source":"startup","cwd":"%s"}' "$sandbox" \
+  | GENIRO_AUTO_ARCHIVE_THRESHOLD=10 CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK" | jq -r '.hookSpecificOutput.additionalContext // ""')
+if grep -q 'Auto-archive failed' <<<"$sm" && grep -q 'malformed' <<<"$sm"; then
+  pass "archiver rc>=2 surfaces its first stderr line in the hook context"
+else
+  fail "archiver rc>=2 not surfaced — sm='$sm'"
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 

@@ -69,13 +69,13 @@ Keep at most 6 rows total across both files. Prefer rows with file:line anchors 
 
 ### Step 3 — Prior handoffs
 
-Glob `<HANDOFF_DIR>/from-*.md`. For each filename, check whether its branch suffix matches the current branch (`git branch --show-current`) or the task slug. For matching handoffs, Read the full file.
+List `<HANDOFF_DIR>/from-*.md`. For each filename, check whether its branch suffix matches the current branch (`git branch --show-current`) or the task slug. For matching handoffs, Read the full file.
 
 Common patterns: `from-review-<branch>.md` (just produced findings to apply); `from-debug-<branch>.md` (just authored repro tests). Keep at most 3 handoffs.
 
 ### Step 4 — Prior task planning
 
-Glob `<TASK_PLANNING_ROOT>/plan-*.md` (versioned plans from prior runs of the same task). Read each one's `## Decisions` or `## Approach` block if present. Keep at most 3 prior plans.
+List `<TASK_PLANNING_ROOT>/plan-*.md` (versioned plans from prior runs of the same task). Read each one's `## Decisions` or `## Approach` block if present. Keep at most 3 prior plans.
 
 ## Output Schema
 

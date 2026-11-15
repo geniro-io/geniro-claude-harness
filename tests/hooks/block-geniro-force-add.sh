@@ -72,6 +72,7 @@ if command -v git >/dev/null 2>&1; then
   mkdir -p "$PARITY/.geniro/actions"
   printf 'x\n' > "$PARITY/.geniro/actions/x.md"
   printf 'x\n' > "$PARITY/.geniro/x"
+  printf 'x\n' > "$PARITY/.geniro/actions/a b.md"
   printf 'x\n' > "$PARITY/README.md"
   BLOB="$(git_env git -C "$PARITY" hash-object -w "$PARITY/README.md")"
 
@@ -135,6 +136,20 @@ if command -v git >/dev/null 2>&1; then
   parity "pathspec :(exclude) of .geniro"   nostage "git add -f ':(exclude).geniro' README.md"
   parity "pathspec :! exclude of .geniro"   nostage "git add -f ':!.geniro' README.md"
   parity "pathspec :^ exclude of .geniro"   nostage "git add -f ':^.geniro' README.md"
+  # -- audit T0-2: a command-substitution prefix or a spaced quoted path still names .geniro
+  parity "\$(git rev-parse) prefix"          stage   'git add -f "$(git rev-parse --show-toplevel)/.geniro/actions/x.md"'
+  parity "\$(pwd) prefix"                    stage   'git add -f $(pwd)/.geniro/actions/x.md'
+  parity "backtick prefix"                  stage   'git add -f `pwd`/.geniro/actions/x.md'
+  parity "quoted path with a space"         stage   'git add -f ".geniro/actions/a b.md"'
+  parity "single-quoted path with a space"  stage   "git add -f '.geniro/actions/a b.md'"
+  parity "\$(pwd) prefix, non-.geniro path"  nostage 'git add -f "$(pwd)/README.md"'
+  # -- audit T0-3: glob spellings
+  parity "shell glob .geniro*"              stage   'git add -f .geniro*'
+  parity "pathspec glob '.geniro*'"         stage   "git add -f '.geniro*'"
+  parity "glob .geniro-notes*"              nostage 'git add -f .geniro-notes*'
+  # -- audit T0-4: coproc runs its command
+  parity "coproc git add -f"                stage   'coproc git add -f .geniro/actions/x.md'
+  parity "coproc { git add -f; }"           stage   'coproc { git add -f .geniro/actions/x.md; }'
   # -- T0-5: heredoc detection must not swallow the lines after it
   parity "hyphenated heredoc tag, force-add after it" stage \
     "$(printf 'cat >/dev/null <<END-NOTE\nbody\nEND-NOTE\ngit add -f .geniro/actions/x.md')"

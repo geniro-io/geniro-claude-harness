@@ -36,20 +36,20 @@ The echo carries only as far as this context. Where the obligation runs inside a
 
 ## Echo contract
 
-Print exactly one line when the Read returns, and close it with a verbatim fragment from inside the file — its first section heading below the Contents block, or, for a file with no sections, its first sentence:
+Print exactly one line when the Read returns, and close it with a verbatim fragment from inside the file — its first sentence below the Contents block. Lead with the plain phase name; no `Phase <N>` label, no numbered heading:
 
 ```
-Phase <N> (<name>) — loaded <filename> · "<verbatim fragment>"
+<Plain phase name> — loaded <filename> · "<verbatim fragment>"
 ```
 
 Examples:
 
 ```
-Phase 1 (Analyze) — loaded phase-1-analyze.md · "## PHASE 1: ANALYZE"
-Phase 2 (Propose) — loaded phase-2-propose.md · "### 2.1 Refresh custom instructions on entry"
+Analyze — loaded phase-1-analyze.md · "Phase body for the implement skill."
+Propose — loaded phase-2-propose.md · "Phase file for the debug skill."
 ```
 
-**The fragment is what makes the echo evidence.** A fixed template can be produced by a run that never opened the file, and is: measured on an unattended host with the phase files absent, runs emitted `Phase 1 (Analyze) — loaded phase-1-analyze.md.` verbatim for a file that did not exist, then proceeded through the whole flow reporting success. Quoting the file's own words does not make that impossible, but it converts the claim from a template into a specific, checkable one — the reader can open the file and compare, and a run one hop from a file it cannot reach has to invent a detail rather than repeat a form. Where the fragment cannot be produced, the Read did not happen: say that instead of echoing.
+**The fragment is what makes the echo evidence.** A fixed template can be produced by a run that never opened the file, and is: measured on an unattended host with the phase files absent, runs emitted `Analyze — loaded phase-1-analyze.md.` verbatim for a file that did not exist, then proceeded through the whole flow reporting success. Quoting the file's own words does not make that impossible, but it converts the claim from a template into a specific, checkable one — the reader can open the file and compare, and a run one hop from a file it cannot reach has to invent a detail rather than repeat a form. Where the fragment cannot be produced, the Read did not happen: say that instead of echoing.
 
 No hook enforces any of this, by design — the echo and its fragment are the only trace the Read left.
 

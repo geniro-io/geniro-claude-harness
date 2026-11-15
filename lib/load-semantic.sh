@@ -159,30 +159,22 @@ load_semantic() {
   # Default top-2 L3 files (_project + _CODEBASE_MAP) + any extras.
   local -a names=("_project" "_CODEBASE_MAP")
   if [ -n "$extras" ]; then
-    # `read -ra` splits on IFS (default whitespace) into the array WITHOUT
-    # glob-expanding tokens. Bare `for e in $extras` would word-split AND
-    # glob-expand against cwd — a token like `_focus-*` would expand to
-    # matching files instead of staying literal.
-    local -a extras_arr
-    IFS=' ' read -ra extras_arr <<< "$extras"
-    local e
-    # `--extras "   "` (whitespace only) passes the `-n "$extras"` test above
-    # but `read -ra` splits it into a ZERO-element array — and on bash 3.2
-    # (macOS /bin/bash), `"${extras_arr[@]}"` on an empty array is treated as
-    # an unset parameter, so under a caller's `set -u` this loop died with
-    # `extras_arr[@]: unbound variable` instead of just doing nothing
-    # (2026-08-23 audit T4-32, verified by reproduction). The count test is
-    # safe on an empty array on every bash version, unlike the expansion.
-    if [ "${#extras_arr[@]}" -gt 0 ]; then
-      for e in "${extras_arr[@]}"; do
-        [ -z "$e" ] && continue
-        # Accept either bare name or with leading underscore.
-        case "$e" in
-          _*) names+=("$e") ;;
-          *)  names+=("_$e") ;;
-        esac
-      done
-    fi
+    # Split on whitespace with parameter expansion only: `read -ra` is bash-only
+    # (zsh: "bad option: -a", every extra silently dropped), and a bare
+    # `for e in $extras` would glob-expand a token like `_focus-*` against cwd
+    # (and does not word-split at all under zsh).
+    local _rest="$extras" e
+    while :; do
+      _rest="${_rest#"${_rest%%[![:space:]]*}"}"
+      [ -z "$_rest" ] && break
+      e="${_rest%%[[:space:]]*}"
+      _rest="${_rest#"$e"}"
+      # Accept either bare name or with leading underscore.
+      case "$e" in
+        _*) names+=("$e") ;;
+        *)  names+=("_$e") ;;
+      esac
+    done
   fi
 
   local n _ls_path rc=0

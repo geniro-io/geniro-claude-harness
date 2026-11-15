@@ -106,7 +106,13 @@ put those changes somewhere they weren't meant to go.
 
 ## Cleanup contract
 
-When a skill completes its pipeline, it `rm -rf`s its slug-scoped state directory `.geniro/state/<skill>/<slug>/` — the whole dir, not just `state.md`. The slug is recomputed from the current branch at cleanup time, so the deletion targets the dir the skill itself wrote. Removing the directory (not only `state.md`) sweeps any scratch the run wrote alongside it — `/geniro:debug`, for one, may write experiment artifacts there — and the migration sweep only scans `.geniro/planning`, so a stray file under `.geniro/state/<skill>/<slug>/` has no backstop. Durable cross-run artifacts never live in this dir — handoffs are at `.geniro/state/handoff/`, authored tests at the project's test paths, the codebase map at `.geniro/planning/_*.md` — so removing it loses nothing the chain still needs. Delete only the current branch's slug dir, never a glob across `.geniro/state/<skill>/*/` — sibling slugs belong to parallel pipelines on other branches still in flight.
+When a skill completes its pipeline, it removes its slug-scoped state directory — the whole dir, not just `state.md`:
+
+```bash
+[ -n "$slug" ] && rm -rf ".geniro/state/<skill>/$slug/"
+```
+
+The slug is recomputed from the current branch at cleanup time, so the deletion targets the dir the skill itself wrote. Guard on a non-empty slug: an empty one makes the path `.geniro/state/<skill>//` and deletes every branch's state for that skill. Removing the directory sweeps any scratch the run wrote alongside `state.md` (`/geniro:debug` may write experiment artifacts there), and the migration sweep only scans `.geniro/planning`, so a stray file has no backstop. Durable cross-run artifacts never live in this dir — handoffs are at `.geniro/state/handoff/`, authored tests at the project's test paths, the codebase map at `.geniro/planning/_*.md` — so removing it loses nothing the chain still needs. Delete only the current branch's slug dir, never a glob across `.geniro/state/<skill>/*/` — sibling slugs belong to parallel pipelines on other branches still in flight.
 
 
 **Old path cleanup.** Producer skills do NOT clear the legacy paths listed in `## Consumer contract` step 4 at run end, and no cleanup pass removes them; they exist solely as the Case D resume fallback, checked only when the slug-scoped path is absent, so an old-format state file still resumes instead of silently disappearing.
@@ -121,7 +127,7 @@ The `2>/dev/null || true` discipline applies — these are best-effort.
 | "I'll route through `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A for safety" | That helper routes cross-session state to the primary worktree's tree. Within-skill state is task-local — Mode A would make sequential branch-A and branch-B sessions in `.claude/worktrees/<X>/` write into `<primary>/.geniro/...`, RE-introducing the same collision the primary helper was designed to fix elsewhere. Use the slug here instead. |
 | "I'll use `${CLAUDE_SESSION_ID}` instead of branch slug" | Session IDs are opaque, accumulate orphans, and don't survive compaction. Branch is the natural durability anchor. |
 | "I'll auto-execute `git checkout <state-branch>` in Case C" | Forbidden by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § Forbidden discovery moves. Mismatch surfaces an AUQ; the user runs the checkout themselves. |
-| "I'll delete all `.geniro/state/<skill>/*/` at cleanup to be tidy" | Other slug dirs belong to other-branch pipelines that may still be in flight. Delete only the current branch's slug dir (`.geniro/state/debug/<slug>/`, `.geniro/state/refactor/<slug>/`, `.geniro/state/onboard/<slug>/`, `.geniro/state/investigate/<slug>/`, or `.geniro/state/audit-instructions/<slug>/`) via `rm -rf`. The older paths listed in `## Consumer contract` step 4 are not sibling slugs either — but they are not run-end cleanup's job either; they exist only for the Case D resume fallback, not as a delete target. |
+| "I'll delete all `.geniro/state/<skill>/*/` at cleanup to be tidy" | Other slug dirs belong to other-branch pipelines that may still be in flight. Delete only the current branch's slug dir. The older paths in `## Consumer contract` step 4 are no delete target either (§Cleanup contract, Old path cleanup). |
 | "I'll skip Case D — users can clean up old state files themselves" | Old state files exist in users' trees. Case D is the migration ramp; without it, the first run after upgrade silently strips a real resume. |
 
 ## Definition of Done

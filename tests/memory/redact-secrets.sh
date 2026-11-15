@@ -506,6 +506,20 @@ esac
 # Summary
 # ---------------------------------------------------------------------------
 
+# String-typed ignore_patterns must compare by equality: jq index() on a string
+# substring-matches, so "api-key:sk-ant" would also disable "api-key:sk".
+new_sandbox
+cat > .geniro/safety.json <<'EOF'
+{ "redaction": { "ignore_patterns": "api-key:sk-ant" } }
+EOF
+key="sk-$(printf 'A%.0s' $(seq 1 48))"
+out="$(redact "token $key end")"
+if [ "$out" != "token $key end" ]; then
+  pass "string-form ignore_patterns 'api-key:sk-ant' does not disable api-key:sk"
+else
+  fail "string-form ignore_patterns substring-matched and disabled api-key:sk — got '$out'"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

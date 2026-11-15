@@ -27,7 +27,7 @@ The ~3,000-word front-load budget approximates the compaction re-attach boundary
 - **TOC required** for any file over ~1,200 words **that is Read at runtime** — SKILL.md bodies, `*-reference.md`, `_shared/*.md`. Place a 5-15 line "Contents" block right after the H1 so partial-read previews see the full scope. `agents/*.md` are exempt: injected in full, a TOC only adds tokens to every spawn.
 - **Single source of truth.** Pseudo-code blocks, slot tables, and schema definitions live in exactly one file. Cross-reference the source; never inline a copy.
 - **A must-have target behind a weakly worded pointer is a variance bug:** sharpen the wording first, and inline the material only if sharpening fails.
-- **One exemption — the turn-boundary rule** is inlined verbatim in every pipeline `SKILL.md`, and the lint's cross-file duplication warning is expected to name it: across 20 measured `/geniro:implement` runs, `_shared/loop-invariants.md` was read 0 times and `gate-rendering.md` once. Keep the copies in step, and re-measure that the target is read before collapsing any of them back to a citation.
+- **One exemption — the turn-boundary rule** is inlined verbatim in every pipeline `SKILL.md`: across 20 measured `/geniro:implement` runs, `_shared/loop-invariants.md` was read 0 times and `gate-rendering.md` once. Keep the copies in step, and re-measure that the target is read before collapsing any of them back to a citation.
 
 ### Reference classes
 

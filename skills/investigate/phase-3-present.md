@@ -26,9 +26,9 @@ After Phase 2 Step 2/3 complete (every load-bearing claim verified or routed):
 
 #### Cross-reference
 
-- Identify where agents agree — carry the convergent claims into Phase 2 Step 2 re-verification.
-- Identify where agents disagree or have gaps — flag for Phase 2 Step 2 re-verification or the Phase 2 Step 3 missing-data gate.
-- Single-source claims get no "lower confidence" label — they get the same Phase 2 Step 2 re-verification treatment as any other claim.
+- Identify where agents agree — carry the convergent claims into the draft.
+- Identify where agents disagree or have gaps — flag them in the draft for the Step 2 verifier, or for a Step 4 dive-deeper round.
+- Single-source claims get no "lower confidence" label — Phase 2 Step 2 already re-verified them like any other claim.
 
 #### Draft the answer
 
@@ -91,10 +91,10 @@ EOF
 
 ### Step 6: Cleanup
 
-Every terminal exit runs this — `done` after a "Done — answer is sufficient" pick, `present-summary-only` after the "I have a follow-up question" pick. The `/geniro:update` migration walk scans only `.geniro/planning`, so a terminal that skips this leaks the run's scratch directory with nothing to sweep it later. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract. Write the terminal `phase:` first: the `|| true` below swallows a failed delete, and a surviving state file marked terminal reads as complete to SessionStart recovery instead of being resumed. When state.md `## Scope` recorded a `CLONE_ROOT`, read it before the delete and remove that clone directory too.
+Every terminal exit runs this — `done` after a "Done — answer is sufficient" pick, `present-summary-only` after the "I have a follow-up question" pick. The `/geniro:update` migration walk scans only `.geniro/planning`, so a terminal that skips this leaks the run's scratch directory with nothing to sweep it later. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract. Write the terminal `phase:` first: a surviving state file marked terminal reads as complete to SessionStart recovery instead of being resumed. When state.md `## Scope` recorded a `CLONE_ROOT`, read it before the delete and remove that clone directory too.
 
 ```bash
-rm -rf .geniro/state/investigate/<slug>/ 2>/dev/null || true
+[ -n "$slug" ] && rm -rf ".geniro/state/investigate/$slug/"
 ```
 
 No handoff file to delete. Chat answer is the deliverable; the Step 5 learning is its durable trace.

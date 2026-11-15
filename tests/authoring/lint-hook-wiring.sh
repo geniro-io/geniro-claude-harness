@@ -136,7 +136,7 @@ fi
 # to `Bash` alone while Claude Code's `Monitor` tool ran commands it never saw.
 # Cursor has no such tool (its shell event is beforeShellExecution), so only
 # hooks/hooks.json is checked.
-SHELL_EXECUTING_TOOLS="Bash Monitor"
+SHELL_EXECUTING_TOOLS="Bash Monitor PowerShell"
 GUARD_SCRIPT="block-geniro-force-add.sh"
 
 _matcher_covers() {  # <matcher> <tool>: Claude Code matches a tool name against the matcher as an anchored pattern
@@ -167,23 +167,23 @@ _guard_coverage_gaps() {  # <hooks.json> -> one line per tool the guard's PreToo
 guard_gaps="$(_guard_coverage_gaps hooks/hooks.json)"
 if [ -n "$guard_gaps" ]; then
   while IFS= read -r gap; do
-    report_fail "hooks/hooks.json: the $GUARD_SCRIPT PreToolUse matcher does not cover \`$gap\` — a shell-executing tool the guard never sees (add it to the matcher, e.g. \"Bash|Monitor\")"
+    report_fail "hooks/hooks.json: the $GUARD_SCRIPT PreToolUse matcher does not cover \`$gap\` — a shell-executing tool the guard never sees (add it to the matcher, e.g. \"Bash|Monitor|PowerShell\")"
   done <<< "$guard_gaps"
 else
   echo "OK: $GUARD_SCRIPT is registered for every shell-executing tool ($SHELL_EXECUTING_TOOLS)"
 fi
 
-# Self-test: a matcher that omits Monitor must be reported, one that lists it must not.
+# Self-test: a matcher that omits Monitor or PowerShell must be reported, one that lists both must not.
 _gap_probe="$(mktemp 2>/dev/null || true)"
 if [ -n "$_gap_probe" ]; then
   printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"x/block-geniro-force-add.sh"}]}]}}' > "$_gap_probe"
   _gap_narrow="$(_guard_coverage_gaps "$_gap_probe")"
-  printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash|Monitor","hooks":[{"type":"command","command":"x/block-geniro-force-add.sh"}]}]}}' > "$_gap_probe"
+  printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash|Monitor|PowerShell","hooks":[{"type":"command","command":"x/block-geniro-force-add.sh"}]}]}}' > "$_gap_probe"
   _gap_wide="$(_guard_coverage_gaps "$_gap_probe")"
   printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"x/other.sh"}]}]}}' > "$_gap_probe"
   _gap_missing="$(_guard_coverage_gaps "$_gap_probe")"
   rm -f "$_gap_probe"
-  if [ "$_gap_narrow" = "Monitor" ] && [ -z "$_gap_wide" ] && printf '%s' "$_gap_missing" | grep -q 'not registered'; then
+  if [ "$(printf %s "$_gap_narrow" | tr "\n" " ")" = "Monitor PowerShell" ] && [ -z "$_gap_wide" ] && printf '%s' "$_gap_missing" | grep -q 'not registered'; then
     echo "OK: self-test — the matcher check flags a Bash-only matcher and an unregistered guard"
   else
     report_fail "self-test: the matcher check is not catching a guard that omits Monitor (narrow=[$_gap_narrow] wide=[$_gap_wide] missing=[$_gap_missing])"

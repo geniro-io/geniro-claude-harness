@@ -46,6 +46,37 @@ _geniro_lock_reclaim_secs() {
   printf '%s' "$secs"
 }
 
+# Reclaim a stale lock (directory or file) atomically: `mv` it to a unique name so
+# exactly one of several racing reclaimers wins (a check-then-rmdir lets two both
+# "win", the second deleting a fresh lock the first's caller just acquired), then
+# remove the moved copy. rc 0 = reclaimed or already absent; rc 1 = fresh / held.
+# Usage: _geniro_reclaim_stale_lock <path> <secs>
+_geniro_reclaim_stale_lock() {
+  local p="${1:-}" secs="${2:-}" m dst
+  [ -n "$p" ] || return 1
+  [ -e "$p" ] || [ -L "$p" ] || return 0
+  case "$secs" in ''|*[!0-9]*) return 1 ;; esac
+  m=$(stat -c %Y "$p" 2>/dev/null || stat -f %m "$p" 2>/dev/null) || return 1
+  case "$m" in ''|*[!0-9]*) return 1 ;; esac
+  [ $(( $(date +%s) - m )) -gt "$secs" ] || return 1
+  dst="$p.stale.$$.$RANDOM"
+  if mv "$p" "$dst" 2>/dev/null; then
+    # A rival may have reclaimed and re-acquired between our age check and the
+    # rename, so what we moved can be a live fresh lock: put it back.
+    m=$(stat -c %Y "$dst" 2>/dev/null || stat -f %m "$dst" 2>/dev/null || echo 0)
+    if [ $(( $(date +%s) - m )) -le "$secs" ]; then
+      # Recreate (mkdir / hard link fail if a rival already holds it) rather than
+      # `mv` back, which would nest the copy inside a lock dir that now exists.
+      if [ -d "$dst" ]; then mkdir "$p" 2>/dev/null || true; else ln "$dst" "$p" 2>/dev/null || true; fi
+      rm -rf "$dst" 2>/dev/null
+      return 1
+    fi
+    rm -rf "$dst" 2>/dev/null
+    return 0
+  fi
+  [ ! -e "$p" ]
+}
+
 # Byte size of <log> (digits only; empty on failure). Measured BEFORE the rewrite
 # reads the log, and the read is then bounded to exactly this many bytes.
 _geniro_log_size() {

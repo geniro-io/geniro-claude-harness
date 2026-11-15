@@ -4,7 +4,7 @@ Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Ph
 
 ## Phase 5: `edit` sub-command
 
-**Tool surface.** Allowed: `Read`, `Bash(atomic_state_write, stat, cp, mv, rm -f *.pre-edit.bak)`, `AskUserQuestion`. Forbidden: `Write`, `Edit`, `mcp__*`, network egress.
+**Tool surface.** Allowed: `Read`, `Bash(atomic_state_write, validate_action_file via `lib/validate-action-file.sh`, stat, cp, mv, rm -f *.pre-edit.bak)`, `AskUserQuestion`. Forbidden: `Write`, `Edit`, `mcp__*`, network egress.
 
 ### Step 1 — Resolve target
 

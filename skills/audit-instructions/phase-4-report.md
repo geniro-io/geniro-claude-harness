@@ -1,6 +1,6 @@
 # Phase 4 — Report (steps)
 
-Read on Phase 4 entry from `/geniro:audit-instructions` SKILL.md; the spine's invariants and budgets stay binding here.
+Read on Phase 4 entry from `/geniro:audit-instructions` SKILL.md; the spine's invariants and budgets stay binding here. On the same entry, also Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md` and `audit-instructions-definition-of-done.md`, so no Read separates the render from the question.
 
 Write `.geniro/state/audit-instructions/report-<YYYY-MM-DD>.md` via `atomic_state_write` — it lives outside the slug directory deliberately, so it survives the Phase 5 cleanup and becomes the next run's Phase 0 input. Structure:
 
@@ -14,4 +14,4 @@ Write `.geniro/state/audit-instructions/report-<YYYY-MM-DD>.md` via `atomic_stat
 
 On `--quick` runs, omit section 4 and the convergence notes — no reviewers ran; state "mechanical pre-pass only" in the header, noting that the secret and unsafe-directive candidates were adjudicated inline. Section 6 still appears, carrying the inline sweep.
 
-In chat, render **every** finding before the action gate — the user approves individual edits to their instruction files, so each one has to be visible, the lowest tier included. Lead with the highest-value fix, then the full tier tables T0→T4 (same rows as the report, each tier introduced in plain English — "leaked secrets and unsafe directives", "instructions that mislead agents"), then the report path. This render is the decision context for the Phase 5 question: emit it as a visible chat message and fire the question immediately after — never stop between render and question — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard. The set the user is about to approve and the set they can see must be the same set.
+In chat, render **every** finding before the action gate — the lowest tier included. Lead with the highest-value fix, then the full tier tables T0→T4 (same rows as the report, each tier introduced in plain English — "leaked secrets and unsafe directives", "instructions that mislead agents"), then the report path. This render is the decision context for the Phase 5 question: emit it as a visible chat message and fire the question immediately after — never stop between render and question — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard. The set the user is about to approve and the set they can see must be the same set.

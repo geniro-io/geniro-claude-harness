@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # block-geniro-force-add.sh
-# PreToolUse hook for Bash and Monitor — blocks `git add -f` / `--force` (and
+# PreToolUse hook for Bash, Monitor and PowerShell — blocks `git add -f` / `--force` (and
 # `git stage`, git's synonym for `add`) and the plumbing twin `git update-index
 # --add` on .geniro/ paths.
 #
@@ -15,7 +15,7 @@
 # does not follow variables, `bash -c` payloads, or interpreter calls — the
 # deleted guards chased those and blocked read-only commands far more often
 # than they caught a real write. The guard keys on tool_input.command alone, so
-# every tool that runs a shell command (Bash, Monitor) is checked the same way.
+# every tool that runs a shell command (Bash, Monitor, PowerShell) is checked the same way.
 #
 # tests/hooks/block-geniro-force-add.sh runs each spelling through real git and
 # requires this guard to block exactly when git stages an ignored .geniro/ file.
@@ -103,8 +103,14 @@ strip_heredocs() {
 # Pathspec magic `:(top)` / `:(top,glob)` is folded to a bare `:` first (and
 # `:(exclude)` to `:!`, which names nothing): its parentheses would otherwise
 # split the path from its `.geniro`, and a space inside the quotes would blank it.
+# A `$(…)` or backtick prefix before a slash collapses to a placeholder word (its
+# parentheses would split the path from its `.geniro`), and whitespace inside a
+# quoted span that names a `.geniro` component becomes `_`, so it is not blanked.
 SCANNED=$(printf '%s\n' "$COMMAND" | strip_heredocs \
   | awk '{ if (sub(/\\$/, "")) printf "%s ", $0; else print }' \
+  | sed -E -e 's/\$\([^()]*\)\//X\//g' -e 's/`[^`]*`\//X\//g' \
+  | sed -E -e ':kd' -e 's/("([^";&|]*[\/:,])?\.geniro[^";&|]*)[[:space:]]([^";&|]*")/\1_\3/' -e 'tkd' \
+  | sed -E -e ':ks' -e "s/('([^';&|]*[\\/:,])?\\.geniro[^';&|]*)[[:space:]]([^';&|]*')/\\1_\\3/" -e 'tks' \
   | sed -E "s/:\([^)]*exclude[^)]*\)/:!/g; s/:\([^)]*\)/:/g; s/\"[^\";&|]*[[:space:]][^\";&|]*\"/\"\"/g; s/'[^';&|]*[[:space:]][^';&|]*'/''/g")
 
 find_safety_json() {
@@ -133,7 +139,7 @@ RE_REDIR_BARE='^[0-9]*(>>|>|<)$'
 RE_REDIR_ATTACHED='^[0-9]*(>>|>|<)'
 # A `.geniro` path component: leading, after a slash, after pathspec magic's
 # `:`, or after the `,` of `--cacheinfo mode,sha,path`.
-RE_GENIRO='(^|[/:,])\.geniro(/|$)'
+RE_GENIRO='(^|[/:,])\.geniro([/*?[]|$)'
 
 # The word as the shell reads it: lowercase, quotes and backslashes removed.
 norm_word() { printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]' | tr -d "\"'\\\\"; }
@@ -168,7 +174,7 @@ segment_force_adds_geniro() {
       i=$((i + 1)); continue
     fi
     case "$word" in
-      '!'|'{'|if|then|elif|else|while|until|do) i=$((i + 1)); continue ;;
+      '!'|'{'|coproc|if|then|elif|else|while|until|do) i=$((i + 1)); continue ;;
     esac
     if [[ $word =~ $RE_ASSIGN ]] || [[ $word =~ $RE_REDIR_ATTACHED && ! $word =~ $RE_REDIR_BARE ]]; then
       i=$((i + 1)); continue

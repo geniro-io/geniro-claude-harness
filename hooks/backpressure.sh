@@ -17,6 +17,17 @@
 #   source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh"
 #   run_silent "Tests" "npm test"
 
+# Put back the INT/TERM traps the caller had before run_silent armed its own
+# (`$1` is their `trap -p` capture). Bash only: zsh has no `trap -p`, so there
+# the traps are just cleared.
+_bp_restore_traps() {
+    trap - INT TERM
+    if [ -n "${BASH_VERSION:-}" ] && [ -n "${1:-}" ]; then
+        eval "$1"
+    fi
+    return 0
+}
+
 run_silent() {
     local description="$1"
     local command="$2"
@@ -31,6 +42,10 @@ run_silent() {
     # on to print a verdict for an interrupted command. Once the capture file is
     # gone the trap ends the shell with the status the signal would have given it
     # (130 / 143) — this file is sourced from the non-interactive shells skills run.
+    local saved_traps=""
+    if [ -n "${BASH_VERSION:-}" ]; then
+        saved_traps=$(trap -p INT TERM)
+    fi
     trap 'rm -f "$tmp_file"; trap - INT TERM; exit 130' INT
     trap 'rm -f "$tmp_file"; trap - INT TERM; exit 143' TERM
     local output_cap="${GENIRO_BACKPRESSURE_CAP:-150}"
@@ -82,7 +97,7 @@ run_silent() {
 
         printf "✓ %s passed (%s)\n" "$description" "$summary"
         rm -f "$tmp_file"
-        trap - INT TERM
+        _bp_restore_traps "$saved_traps"
         return 0
     else
         local exit_code=$?
@@ -114,7 +129,7 @@ run_silent() {
         fi
 
         rm -f "$tmp_file"
-        trap - INT TERM
+        _bp_restore_traps "$saved_traps"
         return $exit_code
     fi
 }

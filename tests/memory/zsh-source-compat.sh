@@ -307,6 +307,21 @@ else
   fail "zsh: direct execution of clean-task-transients.sh did not clean as expected"
 fi
 
+# --- 7. load_semantic --extras under zsh: `read -ra` is bash-only, so extras were
+#        silently dropped. Both shells must emit the extra file, glob-literal.
+for shell in zsh bash; do
+  new_sandbox
+  mkdir -p "$SANDBOX_DIR/.geniro/planning"
+  echo "ALPHA-BODY" > "$SANDBOX_DIR/.geniro/planning/_alpha.md"
+  echo "BETA-BODY" > "$SANDBOX_DIR/.geniro/planning/_beta.md"
+  out=$(cd "$SANDBOX_DIR" && "$shell" -c "source '$REPO_ROOT/lib/load-semantic.sh'; load_semantic --quiet --extras '  alpha   _beta  '" 2>&1)
+  if printf '%s' "$out" | grep -q "ALPHA-BODY" && printf '%s' "$out" | grep -q "BETA-BODY"; then
+    pass "$shell: load_semantic --extras loads every listed extra"
+  else
+    fail "$shell: load_semantic --extras dropped extras (out='$out')"
+  fi
+done
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

@@ -32,7 +32,7 @@ state.md `phase:` enum transitions:
                                                                └── aborted (terminal)
 
 investigate ── (§1.6 second refuted/clarified verifier round) ── phase-1-verification-stalled ──┬── investigate (try-different-hypothesis loop-back)
-                                                                                                  ├── propose (proceed-with-unverified; no phase write)
+                                                                                                  ├── propose (proceed-with-unverified; writes `phase: propose`)
                                                                                                   └── aborted (terminal)
 
 [entry] → adversarial-mode-detect ── adversarial-investigate ──┬── (A3 skip condition) ── adversarial-aborted (terminal)

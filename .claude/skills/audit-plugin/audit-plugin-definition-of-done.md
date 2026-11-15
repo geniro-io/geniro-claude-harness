@@ -4,7 +4,7 @@ The run-completion checklist of `.claude/skills/audit-plugin/SKILL.md`. Read at 
 
 - [ ] Phase 1 battery ran; output captured in checkpoint
 - [ ] Selected reviewers spawned in one response; outputs collected
-- [ ] Every admitted finding re-verified by orchestrator Read (machine findings exempt); every kept T0/T1 carries a cold verifier verdict
+- [ ] Every admitted finding re-verified by orchestrator Read (machine findings exempt); every kept T0 carries a cold verifier verdict
 - [ ] Subtraction sweep ran and is reported — what was examined and what was rejected — whether or not it yielded proposals (the subtraction-sweep invariant)
 - [ ] Report written to `design/scratch/plugin-audit-<date>.md` with health summary, tier tables, verdicts, filtered list, subtraction sweep
 - [ ] Every finding rendered to chat (all tiers, low included) before the gate — no tier collapsed to a bare count

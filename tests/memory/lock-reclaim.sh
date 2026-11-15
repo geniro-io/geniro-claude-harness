@@ -116,6 +116,45 @@ else
   echo "SKIP: zsh not available — zsh-source check skipped."
 fi
 
+# --- 8. _geniro_reclaim_stale_lock <path> <secs>: atomic rename-then-remove.
+RL_DIR="$(mktemp -d)"
+trap 'rm -rf "$RL_DIR"' EXIT
+mkdir "$RL_DIR/stale.lock"; touch -t 202001010000 "$RL_DIR/stale.lock"
+_geniro_reclaim_stale_lock "$RL_DIR/stale.lock" 600; rc=$?
+if [ "$rc" -eq 0 ] && [ ! -e "$RL_DIR/stale.lock" ] && [ -z "$(find "$RL_DIR" -name '*.stale.*')" ]; then
+  pass "reclaim: stale lock dir removed (rc 0), no moved copy left behind"
+else fail "reclaim: stale dir rc=$rc left=$(ls "$RL_DIR" | tr '\n' ' ')"; fi
+# A second reclaimer arriving after a rival re-acquired must not remove the fresh lock.
+mkdir "$RL_DIR/stale.lock"
+_geniro_reclaim_stale_lock "$RL_DIR/stale.lock" 600; rc=$?
+if [ "$rc" -eq 1 ] && [ -d "$RL_DIR/stale.lock" ]; then
+  pass "reclaim: a freshly re-acquired lock is untouched (rc 1)"
+else fail "reclaim: fresh lock rc=$rc present=$([ -d "$RL_DIR/stale.lock" ] && echo y || echo n)"; fi
+_geniro_reclaim_stale_lock "$RL_DIR/absent.lock" 600; rc=$?
+[ "$rc" -eq 0 ] && pass "reclaim: absent lock returns 0" || fail "reclaim: absent rc=$rc"
+: > "$RL_DIR/stale.file"; touch -t 202001010000 "$RL_DIR/stale.file"
+_geniro_reclaim_stale_lock "$RL_DIR/stale.file" 600; rc=$?
+if [ "$rc" -eq 0 ] && [ ! -e "$RL_DIR/stale.file" ]; then pass "reclaim: stale lock FILE reclaimed"; else fail "reclaim: stale file rc=$rc"; fi
+# Racing reclaimers over one stale lock, each followed by acquire: exactly one
+# mkdir winner may hold the lock at the end, and nobody may delete the winner's.
+mkdir "$RL_DIR/race.lock"; touch -t 202001010000 "$RL_DIR/race.lock"
+for _i in 1 2 3 4 5 6; do
+  ( _geniro_reclaim_stale_lock "$RL_DIR/race.lock" 600 || true
+    mkdir "$RL_DIR/race.lock" 2>/dev/null && echo won >> "$RL_DIR/race.wins" ) &
+done
+wait
+wins=$(wc -l < "$RL_DIR/race.wins" 2>/dev/null | tr -d ' ')
+if [ "${wins:-0}" -ge 1 ] && [ -d "$RL_DIR/race.lock" ] && [ -z "$(find "$RL_DIR" -name '*.stale.*')" ]; then
+  pass "reclaim: concurrent reclaimers leave a held lock and no moved copies (wins=$wins)"
+else fail "reclaim: race wins=$wins left=$(ls "$RL_DIR" | tr '\n' ' ')"; fi
+# Inline fallback in the hook matches the canonical behavior.
+RFB=$(awk '/^if ! command -v _geniro_reclaim_stale_lock /{inb=1; next} inb && /^fi$/{exit} inb{print}' "$REPO_ROOT/hooks/session-start-restore.sh")
+mkdir "$RL_DIR/fb.lock"; touch -t 202001010000 "$RL_DIR/fb.lock"
+if [ -n "$RFB" ] && bash -c "$RFB
+_geniro_reclaim_stale_lock '$RL_DIR/fb.lock' 600" && [ ! -e "$RL_DIR/fb.lock" ]; then
+  pass "hook inline _geniro_reclaim_stale_lock fallback reclaims a stale lock"
+else fail "hook inline reclaim fallback missing or broken"; fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

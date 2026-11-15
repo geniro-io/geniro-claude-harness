@@ -1,6 +1,6 @@
 # Audit-pipeline discipline (canonical, shared)
 
-Shared contracts for the audit-shaped skills — `/geniro:audit-instructions` and `/audit-plugin`. Each consuming skill keeps its own dimensions, severity-tier definitions, and spawn template; this file is the single home for the machinery every audit runs identically: the pipeline invariants, the reviewer finding schema, and the fix-round discipline. A consuming skill cites the section it needs rather than restating it, and states its domain specifics beside the citation.
+Shared contracts for the audit-shaped skills (`/geniro:audit-instructions` and any other audit-shaped consumer). Each consuming skill keeps its own dimensions, severity-tier definitions, and spawn template; this file is the single home for the machinery every audit runs identically: the pipeline invariants, the reviewer finding schema, and the fix-round discipline. A consuming skill cites the section it needs rather than restating it, and states its domain specifics beside the citation.
 
 ## Shared invariants
 

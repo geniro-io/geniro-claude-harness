@@ -184,6 +184,24 @@ for SIG_CASE in "TERM 143" "INT 130"; do
 done
 rm -rf "$BP_CAP" "$BP_BIN" "$BP_MARK"
 
+# The caller's INT/TERM traps must survive run_silent on both outcomes. Compared
+# with their pre-call values: a background job (tests/run-all.sh) inherits SIGINT
+# ignored and cannot trap it, so the INT handler may not install at all.
+trap 'echo caller-int' INT
+trap 'echo caller-term' TERM
+pre_int=$(trap -p INT); pre_term=$(trap -p TERM)
+run_silent "Trap ok" "true" >/dev/null
+ok_int=$(trap -p INT); ok_term=$(trap -p TERM)
+set +e; run_silent "Trap bad" "exit 2" >/dev/null; set -e
+bad_int=$(trap -p INT); bad_term=$(trap -p TERM)
+trap - INT TERM
+if [ "$ok_int" = "$pre_int" ] && [ "$bad_int" = "$pre_int" ] \
+   && [ "$ok_term" = "$pre_term" ] && [ "$bad_term" = "$pre_term" ] && [ -n "$pre_term" ]; then
+  pass "run_silent restores the caller's INT/TERM traps on success and failure"
+else
+  fail "run_silent clobbered caller traps: ok='$ok_int|$ok_term' bad='$bad_int|$bad_term'"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

@@ -2,7 +2,7 @@
 
 Phase bodies for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry to Phase 3.
 
-**Tool surface (Phases 3-4).** Phase 3 is orchestrator-inline reading and judgment, with no spawn. Phase 4.2 verifies inline and spawns `finding-verifier-agent` only for CRITICAL / HIGH and disputed findings, preceded where a claim rests on behavior outside the repo by web search / fetch for `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2.5's external-evidence pre-run. Read-only shell; `atomic_state_write` for state.md, which also materializes a still-pending brief (`phase-2-spawns.md` §2.3.2). Questions: Phase 4's declared-vs-actual gate. Nothing is written outside the run's scratch directory, and no production source is edited. The Phases 2-4 surface in full: `phase-2-spawns.md`.
+**Tool surface (Phases 3-4).** Phase 3 is orchestrator-inline reading and judgment, with no spawn. Phase 4.2 verifies inline and spawns `finding-verifier-agent` only for CRITICAL / HIGH and disputed findings, after the external-evidence pre-run (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2.5) where a claim rests on behavior outside the repo. Read-only shell; `atomic_state_write` for state.md, which also materializes a still-pending brief (`phase-2-spawns.md` §2.3.2). Questions: Phase 4's declared-vs-actual gate. Nothing is written outside the run's scratch directory, and no production source is edited. The Phases 2-4 surface in full: `phase-2-spawns.md`.
 
 ## Contents
 
@@ -21,6 +21,8 @@ Phase bodies for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry t
 
 State.md `phase: filter`.
 
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction may have dropped the rules — re-Read all files and echo per the helper's contract.
+
 ### 3.1 Orchestrator-side dedup + convergence
 
 The orchestrator reads all per-dimension findings (Phase 2 reviewer-agent outputs + Phase 1.5 mechanical findings) and performs dedup inline — no subagent spawn:
@@ -32,7 +34,7 @@ The orchestrator reads all per-dimension findings (Phase 2 reviewer-agent output
 
 ### 3.2 Mechanical+LLM dedup
 
-Mechanical findings (Phase 1.5) and LLM findings may overlap (e.g., lint says "unused import on line 42", bugs reviewer says "dead code on line 42"). Orchestrator-inline dedup identifies overlap by dedup key, preserves the mechanical finding (deterministic) + drops the LLM's redundant entry. Convergence_count for that finding gains +1 for the mechanical contribution.
+Mechanical (Phase 1.5) and LLM findings may overlap (lint "unused import on line 42", bugs reviewer "dead code on line 42"). Dedup by key keeps the deterministic mechanical finding and drops the LLM's redundant entry. Convergence_count for that finding gains +1 for the mechanical contribution.
 
 ### 3.3 KEEP/FILTER judgment
 

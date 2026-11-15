@@ -57,6 +57,20 @@ sb="$(mktemp -d "$TMPDIR_BASE/repo.XXXXXX")"
 ( cd "$sb" && git init -q && git checkout -q -b 'Feature/Branch_Name' )
 eq "$(cd "$sb" && _geniro_branch_slug)" "feature-branch-name" "no-arg path derives the slug from the current git branch"
 
+# no ASCII alphanumerics -> never empty: deterministic b-<12 hex>, distinct per name
+slug_a="$(_geniro_branch_slug 'фикс')"; slug_b="$(_geniro_branch_slug '修复')"
+slug_c="$(_geniro_branch_slug '_')";    slug_d="$(_geniro_branch_slug '+++')"
+for pair in "фикс:$slug_a" "修复:$slug_b" "_:$slug_c" "+++:$slug_d"; do
+  case "${pair#*:}" in
+    b-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) pass "non-ASCII/symbol-only branch '${pair%%:*}' gets a b-<12 hex> slug" ;;
+    *) fail "empty-slug fallback for '${pair%%:*}' — got '${pair#*:}'" ;;
+  esac
+done
+eq "$(_geniro_branch_slug 'фикс')" "$slug_a" "fallback slug is stable across calls"
+if [ "$(printf '%s\n' "$slug_a" "$slug_b" "$slug_c" "$slug_d" | sort -u | wc -l | tr -d ' ')" = 4 ]; then
+  pass "distinct no-alnum branch names give distinct slugs"
+else fail "fallback slugs collide: $slug_a $slug_b $slug_c $slug_d"; fi
+
 # --- Fallback lockstep: session-start-restore.sh carries an inline
 #     _geniro_branch_slug fallback for a vendored install shipping hooks/
 #     without lib/. Extract it and require it to resolve IDENTICALLY to the
@@ -80,7 +94,7 @@ if [ -z "$FALLBACK" ]; then
 else
   pass "hooks/$hook.sh carries an inline _geniro_branch_slug fallback"
 
-  for input in 'Feature/Foo' "$(printf 'a%.0s' {1..70})" "$(printf 'a%.0s' {1..59}) x"; do
+  for input in 'Feature/Foo' 'фикс' '修复' '_' "$(printf 'a%.0s' {1..70})" "$(printf 'a%.0s' {1..59}) x"; do
     want="$(_geniro_branch_slug "$input")"
     got="$(bash -c "$FALLBACK
 _geniro_branch_slug \"\$1\"" _ "$input")"
