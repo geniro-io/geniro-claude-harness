@@ -72,7 +72,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
 | Dive-deeper rounds | 2 | Phase 3 Step 4 follow-up AUQ | At max, suggest fresh `/geniro:investigate` with refined question; do not silently re-loop. |
-| Fresh-verifier re-review rounds | 1 | Phase 3 Step 2 | At max, present to user with remaining blockers flagged. |
+| Fresh-verifier re-review rounds | 1 | Phase 3 Step 2 | At max, present with remaining blockers flagged. |
 | Research-agent output size | Codebase: the agent contract's own cap · Git / Internet / External: ~8K chars each | Loop invariant #4 | Truncation with marker. |
 
 **Architecture constraints (design intent, not budget):**
@@ -115,7 +115,7 @@ The load-bearing exit gates — skipping any makes the answer unsound or the no-
 - [ ] Glossary check ran when CLAUDE.md has a Domain Context section (Phase 1 Step 2.5)
 - [ ] Duplicate-answer check ran before spawning agents (Phase 1 Step 2.6), logged to `## JIT Cadence` even when it found nothing
 - [ ] Every load-bearing claim re-verified by orchestrator (Phase 2 Step 2) or routed through missing-data gate (Phase 2 Step 3)
-- [ ] Answer self-reviewed by fresh agent (Phase 3 Step 2; max 1 re-review round)
+- [ ] Answer self-reviewed by fresh agent (Phase 3 Step 2; max 1 re-review round, changed sections only)
 - [ ] Answer presented with cited artifacts, Sources, and explicit Open questions for any unverified claims (Phase 3 Step 3)
 - [ ] Follow-up AUQ offered
 - [ ] L2 `discovery` emit fired with trust label per Step 5 trigger conditions

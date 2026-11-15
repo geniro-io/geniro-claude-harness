@@ -114,7 +114,7 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 | Spawn | When |
 |---|---|
 | `codebase-research-agent` | Phase 1 codebase mapping / flow tracing / definition lookups (Loop Invariant S1). Targeted file:line reads tied to a specific hypothesis stay orchestrator-inline (Read / Grep / Glob). |
-| `finding-verifier-agent` | Phase 1 §1.6, always-on — re-verifies the confirmed root cause cold before Phase 2 opens; single spawn, never a fan-out. |
+| `finding-verifier-agent` | Phase 1 §1.6, when the root cause rests on reasoning — re-verifies it cold; single spawn, never a fan-out. |
 
 ---
 

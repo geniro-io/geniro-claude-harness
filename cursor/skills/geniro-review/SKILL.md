@@ -117,7 +117,7 @@ Spawns are **session** (no `model=`) unless a site names a light class (`${CLAUD
 
 ## Phase 2 — LLM reviewer spawns
 
-`phase: llm-spawn` · Steps: `phase-2-spawns.md` §2.1-§2.9. Fire one `reviewer-agent` per triggered dimension as a single parallel batch — each prompt naming the review packet (the batch's shared context, written once beforehand, §2.3) — joined in that same response by the orientation-brief spawn when Phase 1 §13 accepted one (§2.3.2). Exit when every declared dimension returned a structured result or a `status: failed` entry, with `spawn_dims_declared[]` + `spawn_dims_count` written BEFORE the batch fired.
+`phase: llm-spawn` · Steps: `phase-2-spawns.md` §2.1-§2.9. Fire one `reviewer-agent` per triggered dimension (`optimizations` and `pr-metadata` only when state.md `opt-in-dims:` lists them) as a single parallel batch — each prompt naming the review packet (the batch's shared context, written once beforehand, §2.3) — joined in that same response by the orientation-brief spawn when Phase 1 §13 accepted one (§2.3.2). Exit when every declared dimension returned a structured result or a `status: failed` entry, with `spawn_dims_declared[]` + `spawn_dims_count` written BEFORE the batch fired.
 
 ## Phase 3 — Filter & aggregate
 
@@ -125,7 +125,7 @@ Spawns are **session** (no `model=`) unless a site names a light class (`${CLAUD
 
 ## Phase 4 — Stratification & verification
 
-`phase: stratify` · Steps: `phase-3-4-filter-stratify.md` §4.0-§4.2 — post-spawn verification gate, **§4.1 multi-signal admission gate**, per-finding verification. Exit when every admitted CRITICAL / HIGH / MEDIUM finding carries a verifier verdict (or `Validation: unverified`) and refuted ones sit in `## Filtered`.
+`phase: stratify` · Steps: `phase-3-4-filter-stratify.md` §4.0-§4.2 — post-spawn verification gate, **§4.1 multi-signal admission gate**, per-finding verification. Exit when every admitted CRITICAL / HIGH / MEDIUM finding carries a verdict or `Validation: unverified` and refuted ones sit in `## Filtered`.
 
 ## Phase 5 — Persist & emit
 

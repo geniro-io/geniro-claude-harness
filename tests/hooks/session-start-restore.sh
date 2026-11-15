@@ -512,6 +512,16 @@ approvals:
     picked: "open PR"
     at: 2026-05-19T14:00:00Z
     asked_in_phase: ship
+  - category: implement_workspace_setup
+    picked: "Git worktree"
+    source: default
+    at: 2026-05-19T13:00:00Z
+    asked_in_phase: analyze
+  - category: ship_mode_preset
+    picked: "draft"
+    source: launch_config
+    at: 2026-05-19T13:30:00Z
+    asked_in_phase: analyze
 ---
 
 body
@@ -527,6 +537,14 @@ grep -q "DECISIONS ALREADY MADE" <<<"$ac" \
 grep -q '\[ship_mode\] User picked: "open PR"' <<<"$ac" \
   && pass "Block 5d: approval rendering" \
   || fail "Block 5d: approval rendering wrong"
+
+grep -q '\[implement_workspace_setup\] Default taken: "Git worktree"' <<<"$ac" \
+  && pass "Block 5d: source default renders as Default taken" \
+  || fail "Block 5d: source default rendering wrong"
+
+grep -q '\[ship_mode_preset\] Pre-set: "draft"' <<<"$ac" \
+  && pass "Block 5d: source launch_config renders as Pre-set" \
+  || fail "Block 5d: source launch_config rendering wrong"
 
 # An entry carrying none of the three optional fields must render exactly the two
 # lines it always did — no stray "why:" label, no empty-value noise.

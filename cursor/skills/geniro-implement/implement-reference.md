@@ -51,9 +51,9 @@ The first four signals — `CURRENT_BRANCH`, `CURRENT_TOPLEVEL`, `IN_WORKTREE`, 
 
 Literal question shapes for the Step 0c workspace-setup AUQ. `phase-1-analyze.md` Step 0c owns when each fires; these are the verbatim templates.
 
-### Question 1 — workspace (the protected-branch, no-signal, and contested current-branch-continuing rules)
+### Question 1 — workspace (concurrent activity, or a dirty protected branch)
 
-This question instantiates the canonical option catalogue (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md` §2) under Mode WORK-BASE (§3), and its `(Recommended)` handling follows that helper's §5. The labels below carry NO `(Recommended)` suffix: 0b rules 3 and 6 flip the recommendation on `CONCURRENT_ACTIVITY`, so a baked-in suffix would mark the wrong option on every run they govern. Append ` (Recommended)` at render time to the one label the fired rule names.
+This question instantiates the canonical option catalogue (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md` §2) under Mode WORK-BASE (§3), and its `(Recommended)` handling follows that helper's §5. The labels below carry NO `(Recommended)` suffix; append ` (Recommended)` at render time to "Git worktree" — the only option Question 1 ever recommends.
 
 ```
 header: "Workspace"
@@ -116,7 +116,7 @@ approvals:
 
 Field names are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"T1.5 optional `approvals` array". Two of them are easy to get wrong here. The timestamp key is `at`, not `timestamp` — the SessionStart restore hook reads `.at`, so an entry keyed `timestamp` loses its time to every later reader. And `why` / `evidence` / `result` are optional: record `why` on a pick a later reader could not reconstruct from `picked` alone, and `result` once the pick has been acted on, which for a tracker transition is the confirmation the transition landed.
 
-A choice a spec `launch_config` pre-answered (0g) carries the same shape plus `source: launch_config`, so a restored run can tell a plan-time pre-set from a choice the user made interactively.
+A choice a spec `launch_config` pre-answered (0g) carries the same shape plus `source: launch_config`, so a restored run can tell a plan-time pre-set from a choice the user made interactively. A default the skill took without asking (the workspace rules in Step 0b) carries `source: default`, e.g. `category: implement_workspace_setup`, `picked: "Git worktree"`, `source: default`.
 
 An outward gate — one authorizing an action from the `non-resumable-actions[]` enum (`state-tier-spec.md` §"`non-resumable-actions[]` action enum") — additionally carries `classes_shown: [<action-class>, ...]`, naming every class its question, options, or blast-radius render actually named (schema and fallback: `state-tier-spec.md` §"T1.5 optional `approvals` array"). Neither example above is an outward gate, so neither carries it.
 
@@ -489,22 +489,20 @@ DIFF CONTEXT, FIX DIFF, SPEC CONTEXT, and PRIOR-ROUND FINDINGS carry content thi
 - **FIX DIFF** — round N+1 only: the preceding fix round's own diff, the files it edited against their pre-fix snapshot (§"Phase 3: Bounded fix loop" "Pre-fix snapshot"). The reviewer reviews this hunk instead of re-reading the whole change, and reads a file the round created (no snapshot, so no hunk) from CHANGED FILES.
 - **SPEC CONTEXT** — spec.md, or state.md's `## Inline Plan` section (its `Premises:` line included), then the task text and, on a run from `/geniro:debug`, the handoff's root cause (state.md `## Inputs from debug`). The `intent` reviewer judges the change against it.
 - **PROJECT CONTEXT** — stack and conventions from CLAUDE.md.
-- **REUSE INVENTORY** — each REUSE-AS-IS and EXTEND row of the `### Reuse Inventory` section in `<task-dir>/.ce-out.md`, reduced to category, symbol, and `path:line`, every round (`architecture-criteria.md` §7.6 checks the diff used them); `none — explorer found no reusable analogues` when it has no such row, `none — no reuse inventory` when the explorer produced no such section.
-- **PRIOR-ROUND FINDINGS** — `none — first review` on round 1; round 2+ carries the prior round's CRITICAL/HIGH per `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Step 1.7.
+- **REUSE INVENTORY** — each REUSE-AS-IS and EXTEND row of the `### Reuse Inventory` section in `<task-dir>/.ce-out.md`, reduced to category, symbol, and `path:line`, every round (`architecture-criteria.md` §7.6 checks the diff used them); `none — explorer found no reusable analogues` when it has no such row, `none — no reuse inventory` when the explorer produced no such section. Only the `architecture` dimension reads this slot; the other dimensions skip it.
+- **PRIOR-ROUND FINDINGS** — `none — first review` on round 1; round 2 carries round 1's CRITICAL/HIGH per `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Step 1.7.
 
 Each prompt then carries only what is its own:
 
 ```
 Agent(subagent_type="reviewer-agent", description="Self-review: <dim>", prompt="""
 WORKTREE: [from `git rev-parse --show-toplevel`]
-DIMENSION: bugs | security | architecture | tests | code-quality | intent
+DIMENSION: bugs | security | architecture | tests | intent
 REVIEW PACKET: [absolute path of this round's common.md] — read it in full before starting: its sections are part of this prompt, and the diff is reachable only through it.
 PROJECT SEARCH POLICY: the packet's first section, verbatim — it governs every lookup you make, not only the first. [When it names a tool, its exact invocation and its shell form when it has one. When the project declares none, write `PROJECT SEARCH POLICY: none declared` here instead.]
-CRITERIA FILES: [absolute paths only, one per line — this dimension's criteria file(s) from the reviewer dimensions table below, plus `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/architecture-criteria.md` for `code-quality` whenever ARCHITECTURE SCOPE is rendered, and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` for `architecture` whenever SPEC-COMPLIANCE SCOPE is rendered. Read each one before reviewing.]
-[ARCHITECTURE SCOPE — render for `code-quality` only, and only when the run's resolved grid (fixed at Phase 3 entry, not the dimensions re-spawned in a later round) has no `architecture` reviewer: `ARCHITECTURE SCOPE: apply only §7.6 of architecture-criteria.md — re-implementation of existing in-repo code and the packet's REUSE INVENTORY; ignore its other sections.`]
+CRITERIA FILES: [absolute paths only, one per line — this dimension's criteria file(s) from the reviewer dimensions table below, plus `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` for `architecture` whenever SPEC-COMPLIANCE SCOPE is rendered. Read each one before reviewing.]
 [ALSO CHECK — render for `architecture` only: `ALSO CHECK: docs-staleness — README / architecture-doc / contributing-guide references to patterns or files this diff renamed or removed.`]
 [SPEC-COMPLIANCE SCOPE — render for `architecture` only, and only when the run resolved a real spec.md (SPEC CONTEXT is the spec, not an `## Inline Plan`): `SPEC-COMPLIANCE SCOPE: apply all of spec-compliance-criteria.md except §LINEAR CONTEXT supplement, §Cross-PR scope split, §Output anchor, the "fires whenever PLAN CONTEXT is non-`none`" sentence (the orchestrator already decided to run this check), the `open_questions[]` entry in §Spec-premise validation (the INTENT-CHECK finding is the gate), and the draft / bot-author / revert bullets of §Common false positives. The packet's SPEC CONTEXT is your PLAN CONTEXT. Run every check against the run's full changed set — the merge-base diff plus untracked files — not this round's CHANGED FILES or FIX DIFF. No PR exists yet: treat PR-body and PR-metadata evidence as absent, and accept code comments or docs instead. Tag every spec-compliance finding [NEW]: an omission or divergence belongs to this change. Also flag a changed file that the spec's excluded scope names, or that no spec item accounts for, as MEDIUM [INTENT-CHECK]. Anchor each finding to the changed file:line, or to the spec section when no file applies.`]
-[AUTHORED RULE FILES — code-quality only, per the slot below]
 
 Review ONLY for [dimension]. Tag findings [SEVERITY] [NEW|PRE-EXISTING] per the output contract in ${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md §Output Format — name it, never restate it: the agent carries that section in its own instructions.
 
@@ -522,12 +520,9 @@ The diff living only in the packet is what makes its read unskippable; the revie
 | `security` | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/security-criteria.md` | Injection, auth/authz, secret handling, untrusted-input flows, OWASP-top-10 |
 | `architecture` | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/architecture-criteria.md` | Layering, coupling, abstractions, dead code, duplication, naming, file placement. **Also covers re-implementation of existing in-repo code** per architecture-criteria.md §7.6: the diff must use the packet's REUSE INVENTORY rows and any other existing helper, component, or enum that already does the job. **Also covers docs-staleness** (ALSO CHECK line) and, on a spec-driven run, **spec-compliance** — diff matches spec.md scope (SPEC-COMPLIANCE SCOPE line); this column never reaches the reviewer. **Also covers parallel-path symmetry (mirror-gap)** per architecture-criteria.md §1.6: when the diff adds a guard / replacement / cleanup on one path, verify every sibling path sharing the invariant got the same treatment. |
 | `tests` | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` | Changed behaviors no test pins, F→P invariant, loose or brittle assertions, redundant or over-layered tests. **Pre-condition:** tests are green per Phase 2; this dim NEVER sees failing tests. |
-| `code-quality` | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/optimizations-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/guidelines-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/rules-compliance-criteria.md` | Idiomatic style, readability, comments noise, premature abstractions, simplification opportunities, and compliance with the repo's own authored rule files (the authored-rule-citation class conventions-criteria.md §1 hands off to rules-compliance-criteria.md). When the run's resolved grid has no `architecture` reviewer, it also applies architecture-criteria.md §7.6 only (ARCHITECTURE SCOPE line). |
 | `intent` | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/intent-criteria.md` | The change against its stated reason, read from SPEC CONTEXT: each fact the change relies on is true in the code, it solves the stated problem (root cause, not symptom; scope not narrower than the problem), and its intended behavior is right for existing consumers of what changed. Fires at every `change_scope`; later rounds re-fire it under the same behavior-fix rule as every other dimension. |
 
 **Code-style.md** is loaded by every reviewer spawn, not pre-inlined by the orchestrator — each reviewer-agent self-loads it per `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Step 1.6, applying a flagged violation only when it is style-adjacent to its own dimension.
-
-**Authored-rule-files slot (code-quality reviewer only):** fill `AUTHORED RULE FILES:` from a real search of the repo for the sources in the path table of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/rules-compliance-criteria.md` §1, one absolute path per line, or the sentinel `none found` when the search turns up nothing. Always composed; the reviewer runs the same search itself whenever the slot reads `none found` or is absent. Other dimensions do NOT get this slot.
 
 **ACI — reviewer tool surface.** Reviewer-agents are pure-compute on the local diff: the `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` frontmatter `tools:` list (`[Read, Glob, Grep, Bash]`) grants no Edit, Write, Agent, or MCP tool. It does not narrow `Bash`, so its read-only use rests on the agent file's own instructions; the spawn template adds no restriction.
 
@@ -576,10 +571,6 @@ while round ≤ ROUND_CAP:                      # cap canonical in SKILL.md §Lo
 
   collect findings (reviewer dim outputs +
                     list of authored failing edge-case tests on disk)
-  cold-verify: each newly collected CRITICAL/HIGH gets one
-                    finding-verifier-agent verdict per phase-3-ship.md Step 2 —
-                    refuted findings leave the fix set, clarified ones are
-                    amended; skip when none
   partition (scope before severity — findings carry [NEW|PRE-EXISTING] tags):
     OUT-OF-SCOPE = any finding tagged PRE-EXISTING, at ANY severity — it concerns
                  code this change did not introduce, so fixing it silently expands
@@ -636,9 +627,9 @@ else:
 
 **Authored edge-case tests count as HIGH findings for fix purposes** (§"Phase 3: Edge-case test authoring"). Each test's record in state.md `## Authored Tests` is what this exit condition and the ship report's edge-case line read, so update its status there as fixes turn a test GREEN.
 
-**Escalation at exhaust.** When the loop hits its round cap (`${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` §Loop invariants, invariant 5) with unresolved findings, do NOT silently push or claim completion:
+**Escalation at exhaust.** When the loop hits its round cap (`${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` §Loop invariants, invariant 5) with findings fixed in the last round but not re-reviewed, or still open, do NOT silently push or claim completion:
 
-1. **Render the unresolved findings to chat first** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, as a separate already-emitted message, so the user decides from explained findings rather than reviewer shorthand. With ≥2 unresolved findings, open with the decision-queue progress tracker and give each finding the visual-form block, both as that section defines them. The per-dimension summary lives in this render, never inside the question.
+1. **Render those findings to chat first** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, as a separate already-emitted message, so the user decides from explained findings rather than reviewer shorthand. With ≥2 findings, open with the decision-queue progress tracker and give each finding the visual-form block, both as that section defines them. The per-dimension summary lives in this render, never inside the question.
 2. Then fire the lean `AskQuestion` (header: `"Unresolved"`) with the options of `phase-3-ship.md` Step 4. A) Hand off to /geniro:debug writes no handoff file: `/geniro:debug` opens its own investigation from `$ARGUMENTS` and reads no planning `state.md`, so the unresolved findings are named in chat for the user to carry into that invocation. B) Accept findings applies the final full-suite trigger before the transition and records the `## Accepted Findings` block (edited in place when present), which future architecture reviews see. C) Abort leaves the work uncommitted on disk for manual takeover. The Explain-further reading-aid option and the pre-fire scrub arrive via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Single-finding gate — apply that section.
 3. State.md records the `## Termination reason` body line on aborted/handoff: `repeated-failure: phase-3 review-round-limit (<N> unresolved findings)`.
 
@@ -796,7 +787,7 @@ The emit triggers, trust default, and project-snapshot update live in `phase-3-s
 → Consider /geniro:instructions edit <scope>.md to promote as rule.
 ```
 
-Scope hint follows reviewer dimension: dim=`code-quality` → suggest `code-style.md`; dim=`architecture` → suggest `global.md`; other → "appropriate scope". Suggestion fires ONLY for `convention` type — single-occurrence `decision` emits do NOT warrant promotion to a custom-instruction rule. The line is informational (no AUQ, no auto-edit) — user remains source-of-truth for custom-instruction curation.
+Scope hint follows reviewer dimension: dim=`architecture` → suggest `global.md`; other → "appropriate scope". Suggestion fires ONLY for `convention` type — single-occurrence `decision` emits do NOT warrant promotion to a custom-instruction rule. The line is informational (no AUQ, no auto-edit) — user remains source-of-truth for custom-instruction curation.
 
 ---
 

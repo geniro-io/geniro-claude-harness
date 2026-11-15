@@ -4,15 +4,15 @@ Canonical scaling table for the always-fire reviewer-dimension set. `/geniro:imp
 
 ## The rule
 
-Scale the always-fire dimension set by the run's own size signal, except `intent`, which fires in every row below — a false premise is no smaller in a small diff. A conditional dimension — one with its own trigger, independent of size (`optimizations`, `design`, `pr-metadata`, `spec-compliance`, `custom:*` in `/geniro:review`) — is untouched by this table and keeps firing on its own trigger at every tier.
+Scale the always-fire dimension set by the run's own size signal, except `intent`, which fires in every row below — a false premise is no smaller in a small diff. A conditional dimension — one with its own trigger, independent of size (`design`, `spec-compliance`, `custom:*` in `/geniro:review`, plus `optimizations` and `pr-metadata`, which fire only when the request names them) — is untouched by this table and keeps firing on its own trigger at every tier.
 
 **`/geniro:implement`** reads a four-level `change_scope` estimate from the codebase-explorer-agent (Step 6, `${CLAUDE_PLUGIN_ROOT}/agents/codebase-explorer-agent.md` §Output Schema):
 
 | `change_scope` | Dimensions fired |
 |---|---|
 | `trivial` | `bugs`, `tests`, `intent` |
-| `small` | `bugs`, `security`, `tests`, `code-quality`, `intent` — plus `architecture` when a real spec.md resolved (see the spec-driven override below) |
-| `medium` / `big` | Full always-fire set — `bugs`, `security`, `architecture`, `tests`, `code-quality`, `intent` |
+| `small` | `bugs`, `security`, `tests`, `intent` — plus `architecture` when a real spec.md resolved (see the spec-driven override below) |
+| `medium` / `big` | Full always-fire set — `bugs`, `security`, `architecture`, `tests`, `intent` |
 
 **Spec-driven `small`-tier override.** When the run resolved a real spec.md (not an inline task) and the resolved grid is the `small` row, `/geniro:implement` Phase 3 adds `architecture` regardless — it is the sole carrier of spec-compliance and docs-staleness checks in that skill, so the `small` row's drop of it would leave those checks silently uncovered on exactly the tier a spec-driven small diff lands in (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-3-ship.md` §Steps, Step 1). An inline-task run (no spec) keeps the table row unchanged.
 

@@ -94,6 +94,8 @@ Once the decision is made (AUQ-resolved or inherited per §0-pre) and `approvals
 
 **`--focus <text>` extraction (before target-shape detection).** Strip a `--focus <text>` flag from `$ARGUMENTS` first — free text through end-of-line or the next recognized flag — so the routing table below never mistakes steering prose for a branch name, file path, or diff range. The extracted text feeds `steering-note:` (§7 step 5/6); on its own it names no target.
 
+**Opt-in dimension extraction (same point).** Strip `--with <dim>[,<dim>]` from `$ARGUMENTS` too, so its values never parse as a path or branch, and persist the listed dimensions (`optimizations`, `pr-metadata`) as state.md frontmatter `opt-in-dims: [<slug>, ...]` (missing reads as none) so a resume keeps them. Phase 2 §2.1 reads the list.
+
 **`--subagent-model <tier>` extraction (same point as `--focus`).** Strip it from `$ARGUMENTS` too, before target-shape detection. Persist `subagent-model: <tier>` to state.md frontmatter now — missing reads as `inherit` — so a compaction between this step and the Phase 2 spawn batch does not silently revert every reviewer back to the frontmatter default. Values and the fallback routes for an inexpressible tier: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`.
 
 **`--brief` / `--no-brief` extraction (same point).** Strip whichever is present from `$ARGUMENTS` too, before target-shape detection — present/absent, no value; both present, last occurrence wins (§0b's modifier convention). Persist the result to state.md frontmatter right now, the same point `--subagent-model` above persists and for the same reason: a compaction across steps 2-12 would otherwise silently drop the pre-answer before §13 ever reads it back. `--no-brief` persists `brief: off` (field: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md`), closing the question outright. `--brief` persists `brief: pending` — an accepted opt-in still awaiting the medium pick, a transient value §13 reads back and resolves to `artifact` / `file` / `off` before Phase 2 fires.
@@ -252,7 +254,7 @@ Size-only triage (the §12 size threshold) misses high-stakes small diffs. Strat
 - Phase 1.5 mechanical pre-pass secret scan strictness — risk-tier:high adds the strict-mode patterns (`phase-1-triage.md` §1.5.3).
 - Phase 2's always-fire dimension grid — risk-tier:high forces the full always-fire set regardless of the §12 size signal (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-grid-scaling.md`).
 
-**Not tier-scaled:** Phase 4.1 admission reads severity and the Evidence-Block check only, and neither varies by `risk-tier` — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 is the single source for every admission signal, so do not reintroduce a tier-varying threshold here. Phase 4.2 verifier coverage is the same: every §4.1 survivor (CRITICAL / HIGH / MEDIUM) is verified at both tiers — no tier-scaling, no severity-scaling.
+**Not tier-scaled:** Phase 4.1 admission reads severity and the Evidence-Block check only, and neither varies by `risk-tier` — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 is the single source for every admission signal, so do not reintroduce a tier-varying threshold here. Phase 4.2 coverage is the same: every §4.1 survivor (CRITICAL / HIGH / MEDIUM) gets a verdict at both tiers, inline or spawned per `finding-verification.md` §1.
 
 ---
 

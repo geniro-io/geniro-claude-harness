@@ -47,7 +47,7 @@ A bare `open PR` / `with PR` (no draft-vs-ready qualifier) does NOT skip the shi
 
 ## /geniro:review
 
-`argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>] [--focus <text>] [--subagent-model <tier>] [--brief|--no-brief]"`
+`argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>] [--focus <text>] [--subagent-model <tier>] [--brief|--no-brief] [--with optimizations,pr-metadata]"`
 
 | Flag / modifier | Values | What it sets | How it changes the questions |
 |---|---|---|---|
@@ -57,6 +57,7 @@ A bare `open PR` / `with PR` (no draft-vs-ready qualifier) does NOT skip the shi
 | `--no-brief` | present / absent | Skips the brief offer entirely — no opt-in question, no medium question. | The brief question, the last step of Phase 1. |
 | `worktree` / `no-worktree` / `here` / `current-branch` / `new-branch` | one value | Forces the workspace path the review inspects. | The Step 0 workspace question. |
 | `--subagent-model` | `sonnet` / `opus` / `haiku` / `fable` | Pins every session spawn in this run to the named model and caps light spawns — a stronger model never raises them, a cheaper one lowers them. Announced once at run start. A value the host cannot carry names that host's working route instead of applying silently — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. | No question — an explicit run-wide election, not a pre-set answer. |
+| `--with` | `optimizations` / `pr-metadata`, comma-separated | Adds those opt-in reviewer dimensions to the run. | No question. |
 
 ## Non-suppressible safety gates
 

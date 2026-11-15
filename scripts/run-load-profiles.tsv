@@ -13,14 +13,14 @@
 # script contributes only the arithmetic; it holds no numbers of its own.
 #
 # R1 — the lightest run of the full always-fire set (at or over the size boundary in
-#      skills/_shared/review-grid-scaling.md): seven always-fire dimensions plus the
-#      broad-trigger `optimizations` conditional, no spec, no PR, no verifiers, no
-#      custom reviewers. No other conditional is triggered. A diff under the boundary
+#      skills/_shared/review-grid-scaling.md): the seven always-fire dimensions, no
+#      spec, no PR, no verifiers, no custom reviewers. No conditional or opt-in is
+#      triggered. A diff under the boundary
 #      fires only five dimensions (bugs, security, tests, conventions, intent) and
 #      costs less than R1; no profile pins it.
 # R2 — the ceiling for built-in dimensions. All eleven fire (seven always-fire
-#      dimensions plus the broad-trigger `optimizations` conditional, and design,
-#      pr-metadata and spec-compliance), a spec and a PR are present, and the
+#      dimensions, the opt-in `optimizations` and `pr-metadata`, and design and
+#      spec-compliance), a spec and a PR are present, and the
 #      survivor set draws five verifier spawns.
 #
 # R2 pins the eleven built-in rows of the grid at skills/review/phase-2-spawns.md
@@ -65,12 +65,11 @@ R1	orchestrator	1	skills/_shared/emit-learning.md
 R1	orchestrator	1	skills/_shared/runtime-portability.md
 R1	orchestrator	1	skills/_shared/flags-reference.md
 
-# ---- R1: per-dimension criteria (seven always-fire dims plus the broad-trigger `optimizations` conditional; conventions owns three files) ----
+# ---- R1: per-dimension criteria (the seven always-fire dims; conventions owns three files) ----
 R1	criteria	1	skills/_shared/review-criteria/bugs-criteria.md
 R1	criteria	1	skills/_shared/review-criteria/security-criteria.md
 R1	criteria	1	skills/_shared/review-criteria/architecture-criteria.md
 R1	criteria	1	skills/_shared/review-criteria/tests-criteria.md
-R1	criteria	1	skills/_shared/review-criteria/optimizations-criteria.md
 R1	criteria	1	skills/_shared/review-criteria/guidelines-criteria.md
 R1	criteria	1	skills/_shared/review-criteria/conventions-criteria.md
 R1	criteria	1	skills/_shared/review-criteria/rules-compliance-criteria.md

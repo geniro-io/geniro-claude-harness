@@ -70,7 +70,7 @@ For a PR ref, strip leading `#` and resolve with:
 - `gh pr diff <number-or-url>` to materialize the diff
 - `gh pr view <number-or-url> --json baseRefName,headRefName,body,title,headRefOid,url,isDraft,author,labels,commits` for base/head context, head SHA pin, PR URL, PR body+title (the PR body feeds PLAN CONTEXT), plus the draft state, author user, label set, and commit messages (`commits[].messageHeadline` + `messageBody`, bounded per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §2). The Phase 4.2 verifier's intent sources (PR body, commit subjects, plan sections) are assembled at verification time (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2)
 
-The draft/author/labels feed the pr-metadata reviewer's Common-False-Positives detection (bot-author / draft / release-please-label PRs excluded from rubric-strict checks). Capture the original PR ref, `headRefOid`, and canonical `url` — all three persisted to the state file for Phase 6 Action gate's "Post Draft PR review" option and for `commit_id` pinning (prevents line-anchor drift if PR updates mid-review).
+The draft/author/labels feed the pr-metadata reviewer's (when opted in) Common-False-Positives detection (bot-author / draft / release-please-label PRs excluded from rubric-strict checks). Capture the original PR ref, `headRefOid`, and canonical `url` — all three persisted to the state file for Phase 6 Action gate's "Post Draft PR review" option and for `commit_id` pinning (prevents line-anchor drift if PR updates mid-review).
 
 If `gh` is unavailable or the PR cannot be fetched, report the error and stop — do NOT fall back silently to unstaged changes; do NOT run `gh pr list` to "find a related PR".
 
