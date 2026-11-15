@@ -354,6 +354,41 @@ EOF
 expect_check anchor-illegal MEDIUM "a scope with no legal anchors (review) rejects any 'After <phase>' subsection" "$no_anchor_scope" review
 
 # ---------------------------------------------------------------------------
+# Data Sources / Verification Surface block in a scope that never reads it
+# ---------------------------------------------------------------------------
+
+mkdir -p "$TMPDIR/stray"
+stray="$TMPDIR/stray/onboard.md"
+cat > "$stray" <<'EOF'
+# Custom Instructions
+
+## Rules
+
+- r
+
+## Constraints
+
+- c
+
+## Data Sources
+
+- **prod-db** (confirms: status) - `psql -c "SELECT 1"`
+
+## Verification Surface
+
+- `make test` - covers: x. Does not cover: y.
+EOF
+expect_check block-unconsumed LOW "Data Sources / Verification Surface in onboard.md warns" "$stray" onboard
+run_validator "$stray" onboard
+if printf '%s\n' "$VIF_OUT" | grep -q "Data Sources" && printf '%s\n' "$VIF_OUT" | grep -q "Verification Surface"; then
+  pass "the warning names each stray block"
+else
+  fail "block-unconsumed rows should name both blocks; got: $VIF_OUT"
+fi
+expect_clean "the same blocks in implement.md raise no block-unconsumed row" "$stray" implement
+expect_clean "the same blocks in global.md raise no block-unconsumed row" "$stray" global
+
+# ---------------------------------------------------------------------------
 # Direct execution path — same verdict as the sourced function
 # ---------------------------------------------------------------------------
 

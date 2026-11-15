@@ -16,7 +16,7 @@ Everything `/geniro:setup` does ONLY when §1.1 resolved `mode == re-run`. An `i
 
 Run this before generating content, so the `.geniro/` directory structure is current before `CLAUDE.md` and the instruction files are regenerated.
 
-Walk `${CLAUDE_PLUGIN_ROOT}/MIGRATION.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md` — that helper parses the entries, runs each `Auto-detect:` behind its `N/A` guard, and classifies each entry as applicable or not. Its walk-every-entry rule is what makes the sweep complete: a user re-running `/geniro:setup` could be coming from any prior version.
+Walk `${CLAUDE_PLUGIN_ROOT}/MIGRATION.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md` — via `migration_walk` from `${CLAUDE_PLUGIN_ROOT}/lib/migration-walk.sh`, which classifies each entry. Its walk-every-entry rule is what makes the sweep complete: a user re-running `/geniro:setup` could be coming from any prior version.
 
 Every outcome the helper reports lands in `## Phase log`, so a sweep that did nothing is distinguishable from a sweep that never ran: `[<ts>] migration sweep skipped: MIGRATION.md absent` / `... unparseable`, and `[<ts>] migration skipped (not affected): <change-name>` per entry the detect cleared.
 

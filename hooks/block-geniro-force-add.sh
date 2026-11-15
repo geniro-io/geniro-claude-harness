@@ -36,7 +36,9 @@ COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null |
 # Nothing to check unless both words appear. -i: macOS resolves `GIT` like
 # `git`, and `.GENIRO` is the same directory on a case-insensitive filesystem.
 grep -qi 'git' <<< "$COMMAND" || exit 0
-grep -qi '\.geniro' <<< "$COMMAND" || exit 0
+# A whole-tree force-add (`git add -f .`) never writes `.geniro`, so the second gate
+# is the add/stage word instead.
+grep -qiE '\.geniro|add|stage' <<< "$COMMAND" || exit 0
 
 # Heredoc bodies are data (a handoff that MENTIONS the rule is not a force-add),
 # so drop them. The whole delimiter word counts (`<<END-NOTE` closes on
@@ -96,6 +98,33 @@ strip_heredocs() {
   '
 }
 
+# Replaces each balanced `$(…)` followed by `/` with `X`, and prints its inner text
+# as an extra line (itself collapsed, so nested substitutions unwind).
+collapse_subst() {
+  awk '
+    function coll(s,   out, i, n, d, j, c) {
+      out = ""; n = length(s); i = 1
+      while (i <= n) {
+        if (substr(s, i, 2) == "$(") {
+          d = 1; j = i + 2
+          while (j <= n && d > 0) {
+            c = substr(s, j, 1)
+            if (c == "(") d++; else if (c == ")") d--
+            j++
+          }
+          if (d == 0 && substr(s, j, 1) == "/") {
+            extra[++ne] = substr(s, i + 2, j - i - 3)
+            out = out "X"; i = j; continue
+          }
+        }
+        out = out substr(s, i, 1); i++
+      }
+      return out
+    }
+    { ne = 0; print coll($0); for (k = 1; k <= ne; k++) print coll(extra[k]) }
+  '
+}
+
 # Then join backslash-newline continuations, normalise pathspec magic, and blank
 # quoted spans that contain whitespace — prose such as a commit message — while a
 # whitespace-free quoted path (`".geniro/x"`) survives. A quoted span may not
@@ -103,12 +132,14 @@ strip_heredocs() {
 # Pathspec magic `:(top)` / `:(top,glob)` is folded to a bare `:` first (and
 # `:(exclude)` to `:!`, which names nothing): its parentheses would otherwise
 # split the path from its `.geniro`, and a space inside the quotes would blank it.
-# A `$(…)` or backtick prefix before a slash collapses to a placeholder word (its
-# parentheses would split the path from its `.geniro`), and whitespace inside a
+# A `$(…)` (nesting included) or backtick prefix before a slash collapses to a placeholder
+# word (its parentheses would split the path from its `.geniro`); the `$(…)` text is
+# scanned again as its own line, so a real inner command stays visible. Whitespace inside a
 # quoted span that names a `.geniro` component becomes `_`, so it is not blanked.
 SCANNED=$(printf '%s\n' "$COMMAND" | strip_heredocs \
   | awk '{ if (sub(/\\$/, "")) printf "%s ", $0; else print }' \
-  | sed -E -e 's/\$\([^()]*\)\//X\//g' -e 's/`[^`]*`\//X\//g' \
+  | collapse_subst \
+  | sed -E -e 's/`[^`]*`\//X\//g' \
   | sed -E -e ':kd' -e 's/("([^";&|]*[\/:,])?\.geniro[^";&|]*)[[:space:]]([^";&|]*")/\1_\3/' -e 'tkd' \
   | sed -E -e ':ks' -e "s/('([^';&|]*[\\/:,])?\\.geniro[^';&|]*)[[:space:]]([^';&|]*')/\\1_\\3/" -e 'tks' \
   | sed -E "s/:\([^)]*exclude[^)]*\)/:!/g; s/:\([^)]*\)/:/g; s/\"[^\";&|]*[[:space:]][^\";&|]*\"/\"\"/g; s/'[^';&|]*[[:space:]][^';&|]*'/''/g")
@@ -159,9 +190,22 @@ is_staging_flag() {
   is_long_opt "${1:-}" --add 4 || is_long_opt "${1:-}" --cacheinfo 4 || is_long_opt "${1:-}" --index-info 5
 }
 
+# The nearest ancestor-or-self of <dir> holding a `.git` (dir or file); <dir> if none.
+git_top() {
+  local d="$1"
+  while [ -n "$d" ] && [ "$d" != "/" ]; do
+    [ -e "$d/.git" ] && { printf '%s' "$d"; return 0; }
+    d=$(dirname "$d")
+  done
+  printf '%s' "$1"
+}
+
+WHOLE_TREE=0
+
 # Returns 0 when one command segment force-adds a .geniro/ path.
 segment_force_adds_geniro() {
   local -a toks
+  WHOLE_TREE=0
   read -r -a toks <<< "$1"
   local i=0 n=${#toks[@]} word base wrapped=0
   # Locate the git word in command position: past assignments, redirections,
@@ -174,7 +218,10 @@ segment_force_adds_geniro() {
       i=$((i + 1)); continue
     fi
     case "$word" in
-      '!'|'{'|coproc|if|then|elif|else|while|until|do) i=$((i + 1)); continue ;;
+      coproc)  # `coproc NAME { … }` names the coprocess before the brace
+        if [ "${toks[$((i + 2))]:-}" = "{" ]; then i=$((i + 3)); else i=$((i + 1)); fi
+        continue ;;
+      '!'|'{'|if|then|elif|else|while|until|do) i=$((i + 1)); continue ;;
     esac
     if [[ $word =~ $RE_ASSIGN ]] || [[ $word =~ $RE_REDIR_ATTACHED && ! $word =~ $RE_REDIR_BARE ]]; then
       i=$((i + 1)); continue
@@ -196,13 +243,17 @@ segment_force_adds_geniro() {
   # Skip git's global options. -C, --work-tree and --git-dir move where a later
   # relative path lands, so their value can be the .geniro directory itself
   # (`git -C .geniro add -f actions/x.md`); the other options only take a value.
-  local geniro=0 tok val
+  local geniro=0 tok val cdir="$PWD"
   while [ "$i" -lt "$n" ]; do
     tok=${toks[$i]}
     case "$tok" in
       -C|--git-dir|--work-tree)
         val=${toks[$((i + 1))]:-}
         names_geniro "$val" && geniro=1
+        if [ "$tok" = "-C" ]; then
+          val=$(printf '%s' "$val" | tr -d "\"'\\\\")
+          case "$val" in /*) cdir=$val ;; *) cdir="$cdir/$val" ;; esac
+        fi
         i=$((i + 2)) ;;
       --git-dir=*|--work-tree=*)
         names_geniro "${tok#*=}" && geniro=1
@@ -220,9 +271,17 @@ segment_force_adds_geniro() {
     *) return 1 ;;
   esac
   i=$((i + 1))
-  local forced=0 opts=1
+  local forced=0 opts=1 all=0 npath=0 dot=0 top=0 w
   while [ "$i" -lt "$n" ]; do
     tok=${toks[$i]}
+    if [ "$mode" = add ]; then
+      if [ "$opts" -eq 1 ] && { [[ $tok =~ ^-[a-zA-Z]*A[a-zA-Z]*$ ]] || is_long_opt "$tok" --all 3; }; then
+        all=1
+      elif [ "$opts" -eq 0 ] || [[ $tok != -* ]]; then
+        npath=$((npath + 1)); w=$(norm_word "$tok")
+        case "$w" in .|./) dot=1 ;; :|:/) top=1 ;; esac
+      fi
+    fi
     if [ "$opts" -eq 1 ] && [ "$tok" = "--" ]; then
       opts=0
     elif [ "$opts" -eq 1 ] && [ "$mode" = add ] && [[ $tok =~ $RE_FORCE ]]; then
@@ -234,7 +293,13 @@ segment_force_adds_geniro() {
     fi
     i=$((i + 1))
   done
-  [ "$forced" -eq 1 ] && [ "$geniro" -eq 1 ]
+  [ "$forced" -eq 1 ] && [ "$geniro" -eq 1 ] && return 0
+  # A forced whole-tree add never writes `.geniro` but force-adds it when it exists.
+  [ "$forced" -eq 1 ] && [ "$mode" = add ] || return 1
+  [ "$all" -eq 1 ] && [ "$npath" -eq 0 ] && top=1
+  if [ "$dot" -eq 1 ] && [ -d "$cdir/.geniro" ]; then WHOLE_TREE=1; return 0; fi
+  if [ "$top" -eq 1 ] && [ -d "$(git_top "$cdir")/.geniro" ]; then WHOLE_TREE=1; return 0; fi
+  return 1
 }
 
 while IFS= read -r SEGMENT; do
@@ -245,7 +310,11 @@ while IFS= read -r SEGMENT; do
     exit 0
   fi
   {
-    echo "Geniro safety blocked [git-add-force-geniro]: git add -f on .geniro/ paths puts ignored files in the IDE's Source Control panel, where one 'Discard All Changes' click deletes them."
+    if [ "$WHOLE_TREE" -eq 1 ]; then
+      echo "Geniro safety blocked [git-add-force-geniro]: git add -f on the whole tree would force-add the ignored .geniro/ directory, which puts its files in the IDE's Source Control panel, where one 'Discard All Changes' click deletes them. Force-add only the paths you mean, or drop -f."
+    else
+      echo "Geniro safety blocked [git-add-force-geniro]: git add -f on .geniro/ paths puts ignored files in the IDE's Source Control panel, where one 'Discard All Changes' click deletes them."
+    fi
     echo "Track a .geniro/ subdir by negating it in .gitignore instead (e.g. \`!.geniro/actions/\` and \`!.geniro/actions/**\`), then use a plain \`git add\`."
     if [ -n "$SAFETY_FILE" ]; then
       echo "To allow it anyway, add \"git-add-force-geniro\" to allow_patterns in $SAFETY_FILE"

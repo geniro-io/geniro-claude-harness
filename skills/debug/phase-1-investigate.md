@@ -33,9 +33,9 @@ Surface these at hypothesis formation: do not re-form a hypothesis equivalent to
 
 - Reproduce the bug consistently and capture what the failure emits. Identify what changed. Record exact repro steps.
 - **If repro is unclear/missing:** `AskUserQuestion` with header "Repro info" — 2-4 concrete options (environment / steps to trigger / expected vs actual behavior). Do NOT guess.
-- **Check open PRs for an existing fix.** Before forming hypotheses, scan open PRs for one that may already fix this bug (ranked by overlap with the suspect / recently-changed files + symptom-keyword match in the PR title/body). Surface matches as hypothesis-priming context; on a strong hit (file overlap AND keyword match) fire an `AskUserQuestion` (header "Existing fix") — review that PR's diff first / test it as a hypothesis / keep investigating — and persist the pick to `approvals[]` category `existing_fix_pr`. Read-only, fail-open, Scientific Mode only (Adversarial Mode's diff-only flow has no symptom or suspect files to key off). Probe mechanics and unreachable-source handling: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/prior-work-scan.md`. Debug-specific wiring: `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §8.
+- **Check open PRs for an existing fix.** Before forming hypotheses, scan open PRs for one that may already fix this bug (ranked by overlap with the suspect / recently-changed files + symptom-keyword match in the PR title/body). Surface matches as hypothesis-priming context; on a strong hit (file overlap AND keyword match) fire an `AskUserQuestion` (header "Existing fix") — review that PR's diff first / test it as a hypothesis / keep investigating — and persist the pick to `approvals[]` category `existing_fix_pr`. Read-only, fail-open, Scientific Mode only (Adversarial Mode's diff-only flow has no symptom or suspect files to key off). Probe mechanics and unreachable-source handling: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/prior-work-scan.md`. Debug-specific wiring: `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §"Open-PR scan".
 
-Persist to state.md body sections `## Symptom` and `## Reproduction Steps` (per the body-section schema in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2).
+Persist to state.md body sections `## Symptom` and `## Reproduction Steps` (per the body-section schema in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §"State file schema").
 
 ### 1.3 Build feedback loop
 
@@ -68,7 +68,7 @@ Based on Observation + Feedback Loop output, form **2-3 competing hypotheses**. 
 
 **Consider infrastructure causes alongside code causes** per § Infrastructure investigation below — when the symptom matches any signal on that section's list, at least one hypothesis has to be an infrastructure hypothesis.
 
-Persist to state.md `## Hypotheses` body section, one block per hypothesis (Hypothesis / Evidence For / Evidence Against / Status: pending → testing → confirmed | rejected | inconclusive / Test Plan / Result — per the body-section schema in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2).
+Persist to state.md `## Hypotheses` body section, one block per hypothesis (Hypothesis / Evidence For / Evidence Against / Status: pending → testing → confirmed | rejected | inconclusive / Test Plan / Result — per the body-section schema in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §"State file schema").
 
 **Render the ranked hypothesis list to chat before testing begins** — plain narration, NOT a gate: do not fire AskUserQuestion and do not block for a response. The user often re-ranks the list instantly from domain knowledge or names a hypothesis already ruled out, and a correction that arrives before the first test costs nothing.
 
@@ -83,7 +83,7 @@ Persist to state.md `## Hypotheses` body section, one block per hypothesis (Hypo
 - **Missing-data gate:** when a probe you actually ran — including a data-source resolution per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §3 — failed to reach the data the test requires (production logs, runtime state, third-party API responses, DB rows behind credentials, screenshots), do NOT mark the hypothesis inconclusive by default. `AskUserQuestion` with header "Missing data": 2-4 concrete options for the specific artifact needed, the paste options, an "I don't have it" path, and — when the data sits behind a source the session can't currently reach — a sign-in-and-retry option phrased as an offer, not a diagnosis (the run cannot tell "not signed in" from "not configured"). An empty or absent answer (no interactive user present) is unresolved, never a user decision. On any unresolved outcome — "I don't have it", "Skip this hypothesis", a retry that still can't reach the source, an empty answer — append an `open_questions[]` entry with `atomic_state_append_list_item` (`id: q<N>`, `source: phase-1-missing-data-gate`, `related_hypotheses: [<H-ID>]`, `status: unresolved`; `question`, `context` and `options` taken from the prompt, the probe that failed and the set just offered), shaped per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2 `open_questions` so the §3.0 pre-gate renders it in full rather than the terse fallback. Write the Result: as an unconfirmed fact naming the source (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §5), not a bare "inconclusive".
 - Record results: confirmed / rejected / inconclusive. Every Result: field cites an artifact per Evidence Standard — a "confirmed" carrying a narrative-only Result is rejected, because the next phase builds a fix proposal on it.
 
-**Record a past learning for each rejected hypothesis.** For each hypothesis transitioning to `Status: rejected` (eliminated by a test that produced contradicting evidence), call `emit-learning` with type `discarded_hypothesis`, required `ext.{hypothesis, evidence_against, tested_by}`, trust `verified`. Scope = the file/module the hypothesis targeted. The emit is per-rejection (multiple rejections in one Phase 1 = multiple emits). Canonical payload shape: `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §9.
+**Record a past learning for each rejected hypothesis.** For each hypothesis transitioning to `Status: rejected` (eliminated by a test that produced contradicting evidence), call `emit-learning` with type `discarded_hypothesis`, required `ext.{hypothesis, evidence_against, tested_by}`, trust `verified`. Scope = the file/module the hypothesis targeted. The emit is per-rejection (multiple rejections in one Phase 1 = multiple emits). Canonical payload shape: `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §"Learning emit payload shapes".
 
 **Sliding-window cap.** `discarded_hypothesis` is a capped bookkeeping type: before each emit, prune per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Sliding-window caps on bookkeeping types, which owns the window size, the flip-then-append order and the locking — uncapped, discarded-hypothesis chatter drowns out `diagnosis` entries at retrieval.
 
@@ -124,7 +124,7 @@ Transitions:
 
 ## Infrastructure investigation
 
-When the symptom matches any signal in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §3, form at least one infrastructure hypothesis alongside the code hypotheses. That section owns the signal list, the investigation checklist, and the hypothesis quality bar — read it rather than deciding from memory which symptoms qualify.
+When the symptom matches any signal in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §"Infrastructure investigation", form at least one infrastructure hypothesis alongside the code hypotheses. That section owns the signal list, the investigation checklist, and the hypothesis quality bar — read it rather than deciding from memory which symptoms qualify.
 
 ---
 
@@ -136,7 +136,7 @@ Pick the one technique the confirmed root cause calls for — never all three on
 
 ## Stall diagnosis taxonomy
 
-When the §1.7 stall gate fires, classify the stall as a missing component (8-category taxonomy A-H: missing instruction / source-of-truth / tool / validator / permission rule / sandbox signal / eval / recovery path). Full table in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §5; the rendering and persistence rules are §1.7 above.
+When the §1.7 stall gate fires, classify the stall as a missing component (8-category taxonomy A-H: missing instruction / source-of-truth / tool / validator / permission rule / sandbox signal / eval / recovery path). Full table in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §"Stall diagnosis taxonomy"; the rendering and persistence rules are §1.7 above.
 
 ---
 

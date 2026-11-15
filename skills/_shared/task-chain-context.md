@@ -56,8 +56,8 @@ Derive the milestone chain fresh from disk every run. No MCP, no persistence —
 Procedure:
 
 1. **Glob** `TASK_DIR` for `milestone-*.md` and the parent `spec.md`.
-2. **Classify each milestone** into `done` / `current` / `next` by reading its frontmatter `lifecycle` + Section 11 (Done Condition), plus a sibling `state.md` `phase:` when one is present in the task-dir:
-   - `done` — `lifecycle: approved`/`superseded`, OR a sibling state.md in a terminal `phase:` for that milestone.
+2. **Classify each milestone** into `done` / `current` / `next` by whether an implement run shipped it:
+   - `done` — some `.geniro/planning/*/state.md` has `spec_path:` naming that milestone file and `phase: done` or `ship-committed-only`.
    - `current` — the milestone matching `CURRENT_ARTIFACT`, OR the lowest-N milestone not yet done.
    - `next` — every milestone after the current one that is not done.
 3. **Order by N** (the `milestone-N.md` index) and mark `CURRENT_ARTIFACT`'s position.

@@ -7,7 +7,6 @@ Phase bodies for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry t
 - Phase 5 — Persist & emit
   - 5.0 Repeat findings (re-run rounds)
   - 5.1 Handoff file write
-  - 5.2 reserved
   - 5.3 Auto-emit pitfall learnings on convergence
   - 5.4 PR comment posting (conditional — gated by Phase 6)
   - 5.5 Idempotent re-entry

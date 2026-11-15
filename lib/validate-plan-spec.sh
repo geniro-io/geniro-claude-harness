@@ -269,6 +269,90 @@ _vps_check_bounded_scope() {
   _vps_emit bounded_scope pass "" ""
 }
 
+# 3a. source_materials_count — the countable half of check 3: Agent entries with
+# `status: ok` in the Tool log of the state.md beside spec.md, against the
+# per-tier minimum. Whether a citation covers its step stays judgment (prose).
+_vps_check_source_count() {
+  local spec="$1" fm="$2" state tier min n log
+  local fix="Phase 1 explore did not produce enough Agent entries for effort tier <tier>. Re-spawn research agents with sharper sub-queries, OR if scope-bound (trivial tier), add an explicit \"scope-bound, no exploration needed\" entry to ## Tool log."
+  state="$(dirname "$spec")/state.md"
+  if [ ! -f "$state" ]; then
+    _vps_emit source_materials_count skip "No state.md beside the spec, so the Tool log was not counted." ""
+    return
+  fi
+  tier="$(_vps_fm_value "$fm" effort_tier)"
+  case "$tier" in
+    trivial|small) min=1 ;;
+    medium) min=2 ;;
+    big) min=3 ;;
+    *) _vps_emit source_materials_count skip "effort_tier '${tier:-unset}' has no research minimum (the effort_tier row reports it)." ""; return ;;
+  esac
+  log="$(_vps_section "$(cat "$state")" "Tool log")"
+  n="$(printf '%s\n' "$log" | awk -v qq="\"'" '
+    function flush() { if (agent && ok) n++; agent = 0; ok = 0 }
+    /^-[[:space:]]/ { flush() }
+    {
+      line = $0; sub(/^-?[[:space:]]+/, "", line); gsub("[" qq "]", "", line)
+      if (line ~ /^tool:[[:space:]]*Agent[[:space:]]*$/) agent = 1
+      if (line ~ /^status:[[:space:]]*ok[[:space:]]*$/) ok = 1
+    }
+    END { flush(); print n + 0 }
+  ')"
+  if [ "$n" -ge "$min" ]; then
+    _vps_emit source_materials_count pass "" ""
+    return
+  fi
+  if [ "$tier" = "trivial" ] && printf '%s\n' "$log" | grep -qi "scope-bound, no exploration needed"; then
+    _vps_emit source_materials_count pass "Trivial tier declares scope-bound, no exploration needed." ""
+    return
+  fi
+  _vps_emit source_materials_count fail "Tool log has $n Agent entries with status ok; effort tier $tier needs at least $min." "$fix"
+}
+
+# 3b. source_citations_resolve — the decidable half of check 3's citation rule:
+# every `<path>:<line>[-<line>]` in section 6 names an existing file (resolved
+# from the cwd) at least that long.
+_vps_check_source_citations() {
+  local body="$1" sec6 cites row step path range end total bad=""
+  local fix="Re-anchor each dangling citation to the file and line the step actually rests on, or drop the step's claim."
+  sec6="$(_vps_section "$body" "6. Steps")"
+  cites="$(printf '%s\n' "$sec6" | awk -v qq="\"'" '
+    /^[[:space:]]*-[[:space:]]*\[[ xX]\][[:space:]]*[0-9]+\./ { step = $0; sub(/^[^0-9]*/, "", step); sub(/\..*$/, "", step) }
+    {
+      line = $0; gsub("[" qq "`(),;]", " ", line); gsub(/\[|\]/, " ", line)
+      m = split(line, w, /[[:space:]]+/)
+      for (i = 1; i <= m; i++) {
+        t = w[i]; sub(/\.+$/, "", t)
+        if (t ~ /:\/\//) continue
+        if (t ~ /^[A-Za-z0-9_.\/@+-]+\.[A-Za-z0-9]+:[0-9]+(-[0-9]+)?$/) print (step == "" ? "-" : step) "\t" t
+      }
+    }
+  ')"
+  while IFS= read -r row; do
+    [ -n "$row" ] || continue
+    step="${row%%"$_VPS_TAB"*}"
+    row="${row#*"$_VPS_TAB"}"
+    path="${row%:*}"
+    range="${row##*:}"
+    end="${range##*-}"
+    if [ ! -f "$path" ]; then
+      bad="$bad; step $step cites $row, but $path does not exist"
+      continue
+    fi
+    total="$(awk 'END { print NR }' "$path")"
+    if [ "${range%%-*}" -lt 1 ] || [ "$end" -gt "$total" ]; then
+      bad="$bad; step $step cites $row, but $path has $total lines"
+    fi
+  done <<VPS_CITES
+$cites
+VPS_CITES
+  if [ -n "$bad" ]; then
+    _vps_emit source_citations_resolve fail "Dangling section 6 citation(s): ${bad#; }." "$fix"
+    return
+  fi
+  _vps_emit source_citations_resolve pass "" ""
+}
+
 # 4. allowed_tools
 _vps_check_allowed_tools() {
   local fm="$1" body="$2" sec7 state body_is_none
@@ -378,6 +462,25 @@ VPS_ANCHORS
     return
   fi
   _vps_emit checkpoints pass "" ""
+}
+
+# 8a. verify_command_nonempty — the shape sub-rule of check 8: every `verify:` in
+# section 9 carries a non-empty remainder. Never executes it.
+_vps_check_verify_command() {
+  local body="$1" sec9 empties
+  sec9="$(_vps_section "$body" "9. Validation")"
+  empties="$(printf '%s\n' "$sec9" | awk '
+    { i = index($0, "verify:"); if (i == 0) next
+      n++; rest = substr($0, i + 7); gsub(/^[[:space:]]+|[[:space:]]+$/, "", rest)
+      if (rest == "") list = list (list == "" ? "" : ", ") n }
+    END { print list }
+  ')"
+  if [ -n "$empties" ]; then
+    _vps_emit verify_command_nonempty fail "Section 9 has an empty verify: field (occurrence $empties)." \
+      "Give each verify: a non-empty read-only command, or drop the empty verify: line."
+    return
+  fi
+  _vps_emit verify_command_nonempty pass "" ""
 }
 
 # 10. placeholder_scan
@@ -650,9 +753,12 @@ validate_plan_spec() {
 
   _vps_check_single_objective "$body"
   _vps_check_bounded_scope "$body"
+  _vps_check_source_count "$spec" "$fm"
+  _vps_check_source_citations "$body"
   _vps_check_allowed_tools "$fm" "$body"
   _vps_check_budget "$fm"
   _vps_check_checkpoints "$fm" "$body"
+  _vps_check_verify_command "$body"
   _vps_check_placeholder_scan "$spec"
   _vps_check_schema_completeness "$body" "$offset"
   _vps_check_workflow_refs "$fm"

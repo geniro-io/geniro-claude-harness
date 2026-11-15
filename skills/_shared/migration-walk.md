@@ -40,39 +40,35 @@ Read `MIGRATION_FILE`. When it does not exist, there are no breaking changes to 
 
 Collect **every** `### <name>` entry across **all** `## v<X.Y.Z>` sections, per the consumption contract in MIGRATION.md's preamble. The version heading groups entries into feature cohorts for readability; it is not a selection gate. The `## vX.Y.Z` axis tracks plugin features, not the package's semver, so a feature can already be live in this install even when its heading version sits outside the installed package's version range — gating on the heading would silently skip it. Each entry's read-only `Auto-detect:` command, not its heading, decides relevance.
 
-The file follows this schema — each release is `## v<X.Y.Z>`, each change is `### <name>` with `Action required:`, `Auto-detect:`, `Auto-fix:`, and `Severity:` fields.
+Run the helper, which walks every entry in file order (entries are independent, so order does not affect which fire):
 
-Process entries in file order (newest cohort first — entries are independent, so order does not affect which fire).
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/lib/migration-walk.sh"   # /geniro:update: "$PLUGIN_PATH/lib/migration-walk.sh"
+migration_walk "$MIGRATION_FILE" "<project dir>"
+```
 
-When the file is present but malformed (the heading structure cannot be parsed), skip the walk and have the caller report one warning line. A walk driven by a half-parsed structure runs some entries and silently drops the rest, which reads as "nothing to migrate" when the opposite is true.
+It prints one `title<TAB>class<TAB>detail` row per entry. rc 66 means the file is present but malformed: skip the walk and have the caller report one warning line. A walk driven by a half-parsed structure runs some entries and silently drops the rest, which reads as "nothing to migrate" when the opposite is true.
 
 ## 4. Run the auto-detect — the `N/A` guard, bash, isolation
 
-For each entry, in this order:
-
-1. **No `Auto-detect:` field** → the entry carries no relevance signal. Treat it as not applicable (§5) and continue.
-2. **Value begins with `N/A`** (matched case-insensitively) → an informational entry with no runnable detector. Skip execution and treat the entry as not applicable (§5). Never pass an `N/A — ...` value to `bash -c`: the prose carries `;`/`&&` that would execute its trailing fragments as commands.
-3. **Otherwise** → run the value via `bash -c '<command>'` and capture its output. Run under bash regardless of the user's interactive shell: an unmatched glob stays literal under bash but aborts the command under zsh's default `nomatch`, which would halt the walk mid-way.
-
-Run each entry's command in isolation so one failing detect cannot cascade into the rest.
-
-Detect commands are read-only by contract (`grep` / `find` / `ls` / `printf`-class), so running one changes nothing on the install — the output is a report, not a mutation.
+The helper owns the mechanics: an `Auto-detect:` value beginning with `N/A` (any case) is prose and never reaches a shell (its `;`/`&&` would execute trailing fragments as commands); every other value runs in its own `bash -c` child, regardless of the user's shell (an unmatched glob aborts under zsh's default `nomatch`), so one failing detect cannot cascade or touch the caller's shell. Detect commands are read-only by contract (`grep` / `find` / `ls` / `printf`-class), so the output is a report, not a mutation.
 
 ## 5. Classify — applicable or not
 
-The captured output is the sole relevance signal:
+The detector output is the sole relevance signal:
 
-| Result | Classification | What the caller does |
-|---|---|---|
-| Output empty | **Not affected** — this install is already current for that entry | Skip the entry and continue — no question, no fix. |
-| Output non-empty | **Applicable** — this install is affected | Hand the entry and its captured output to the caller's apply policy. |
-| `N/A` value, or no `Auto-detect:` field (§4 steps 1-2) | **Not affected** — no detector ran | Same as empty output. |
+| Helper class | What the caller does |
+|---|---|
+| `not-applicable` (empty output, or no `Auto-detect:` field) | Install already current — skip the entry, no question, no fix. |
+| `informational` (`N/A` value) | Same as `not-applicable`; no detector ran. |
+| `applies` (non-empty output; `detail` is the first line) | Hand the entry and its full detector output to the caller's apply policy. |
+| `detector-error` | Report the detail line and continue — an unrunnable detector is not evidence the install is current. |
 
-An applicable entry's `Auto-fix:` comes in one of two shapes, and the shape — not a prefix word — decides whether a shell may run it. A fenced `bash` block is a **command**. Anything else is a **description**: a `Manual-only —` or `Manual —` sentence, `N/A`, or plain prose such as "Remove the `"<id>"` string from `allow_patterns` …". Only a command ever reaches `bash -c`, because a description carries backticks and `;` that a shell would execute — the same hazard as §4 step 2. What happens to a description is the consumer's apply policy.
+An applicable entry's `Auto-fix:` comes in one of two shapes, and the shape — not a prefix word — decides whether a shell may run it. A fenced `bash` block is a **command**. Anything else is a **description**: a `Manual-only —` or `Manual —` sentence, `N/A`, or plain prose such as "Remove the `"<id>"` string from `allow_patterns` …". Only a command ever reaches `bash -c`, because a description carries backticks and `;` that a shell would execute — the same hazard as an `N/A` detect (§4). What happens to a description is the consumer's apply policy.
 
 ## 6. Verify after a fix
 
-Re-run the entry's `Auto-detect:` — exactly as in §4 — after a fix has been applied to it. Only an empty result confirms resolution: an auto-fix can apply partially, and reporting "fixed" without the re-detect leaves the user on a half-migrated install.
+Re-run `migration_walk` after a fix has been applied and read that entry's row (matched by title). Only a non-`applies` class confirms resolution: an auto-fix can apply partially, and reporting "fixed" without the re-detect leaves the user on a half-migrated install.
 
 Re-detect **only** the entries a fix actually ran for. Entries that were skipped, deferred, or printed as manual instructions are intentionally still affected, so re-detecting them reports a failure that never happened and logs the same entry twice.
 

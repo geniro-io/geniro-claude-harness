@@ -77,6 +77,7 @@ _us_acquire_lock() {
 # zsh nothing else would clear the INT/TERM traps — or the lock.
 _us_release_lock() {
   rm -f "${1:-}"
+  _US_HOLDING=0
   _us_restore_traps
   return 0
 }
@@ -88,6 +89,9 @@ _us_release_lock() {
 # explicit release, and a second run must not wipe the traps just restored.
 _US_SAVED_TRAPS=""
 _US_TRAPS_ARMED=0
+# 1 while this invocation holds the lock: the RETURN trap that fires after an
+# explicit release must not delete a lock another process acquired meanwhile.
+_US_HOLDING=0
 _us_restore_traps() {
   if [ "$_US_TRAPS_ARMED" -eq 1 ]; then
     _US_TRAPS_ARMED=0
@@ -204,9 +208,10 @@ update_semantic() {
   # Ctrl-C in that shell would run stale cleanup and exit it outright instead of
   # behaving normally.
   _US_TRAPS_ARMED=1
+  _US_HOLDING=1
   if [ -n "${BASH_VERSION:-}" ]; then
     _US_SAVED_TRAPS=$(trap -p INT TERM RETURN)
-    trap 'rm -f "$lock_path"; _us_restore_traps' RETURN
+    trap '[ "$_US_HOLDING" -eq 1 ] && rm -f "$lock_path"; _us_restore_traps' RETURN
   fi
 
   # A SIGINT/SIGTERM mid-write would skip the RETURN trap and leave the lock (and

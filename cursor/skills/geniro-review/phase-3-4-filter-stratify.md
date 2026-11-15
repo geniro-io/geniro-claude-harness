@@ -105,7 +105,7 @@ CRITICAL and HIGH admit on severity alone; MEDIUM additionally needs a properly-
 
 **DEFER** — a finding clearing neither path is written to `## Deferred — sub-threshold` per the deferred-entry schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.6. Deferred entries are excluded from PR comments and the fix list BY DEFAULT, with two user-elected exits — the Post drill (review-handoff.md §7) and the include-deferred gate (review-handoff.md §4.6) — and they never populate `open_questions[]`. (A LOW `PRODUCT-DECISION` is kept via Path B, never deferred.) A pass that defers nothing still writes the section, carrying the sentinel `none — the Phase 4 filter ran and deferred nothing`, because the §4.6 gate reads a bare section as a filter result that never arrived rather than as a clean one (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel).
 
-The admission gate is unchanged for repeat findings — an unchanged repeat is still ADMITTED; its `repeat-of-prior-round` marker feeds presentation only, never admission (full contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-5-6-emit-handoff.md` §5.0).
+The admission gate is unchanged for repeat findings — an unchanged repeat is still ADMITTED; its `repeat-of-prior-round` marker feeds presentation only, never admission (full contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-5-6-emit-handoff.md` §"Repeat findings").
 
 ### 4.2 Per-finding empirical-reproduction verification
 

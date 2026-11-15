@@ -9,7 +9,7 @@ Canonical definitions of the mechanical validator checks fired in `/geniro:plan`
 ## Contents
 
 - Running the checks
-- The checks: scripted table (1 `single_objective` / 2 `bounded_scope` / 4 `allowed_tools` / 6 `budget` / 7 `checkpoints` / 10 `placeholder_scan` / 11 `schema_completeness` / 12 `workflow_refs_consistency` / 13 `launch_config_consistency` / 14 `effort_tier`), then the judgment checks 3 `source_materials` / 5 `forbidden_actions` / 8 `validation_method` / 9 `stopping_condition`
+- The checks: scripted table (1 `single_objective` / 2 `bounded_scope` / 3 `source_materials_count` + `source_citations_resolve` / 4 `allowed_tools` / 6 `budget` / 7 `checkpoints` / 8 `verify_command_nonempty` / 10 `placeholder_scan` / 11 `schema_completeness` / 12 `workflow_refs_consistency` / 13 `launch_config_consistency` / 14 `effort_tier`), then the judgment checks 3 `source_materials` (coverage) / 5 `forbidden_actions` / 8 `validation_method` / 9 `stopping_condition`
 - Check API contract
 
 ---
@@ -25,7 +25,7 @@ validate_plan_spec ".geniro/planning/<task-slug>/spec.md"
 
 One TAB-separated `check_id status finding_text fix_hint` row per scripted check, in check-number order. `rc 0` = nothing failed (a `warn` or `skip` still exits 0), `rc 1` = at least one row is a `fail`, `rc 64` = no path passed, `rc 65` = path unreadable.
 
-Then apply every judgment check below yourself against the same spec.md (`source_materials` also reads state.md `## Tool log`), and report every check in number order. Do not re-derive a scripted check by hand: the script is the rule, and a hand-run second opinion on it is a second home that drifts.
+Then apply every judgment check below yourself against the same spec.md, and report every check in number order. Do not re-derive a scripted check by hand: the script is the rule, and a hand-run second opinion on it is a second home that drifts.
 
 ---
 
@@ -39,9 +39,12 @@ Each script row carries its own finding text and `fix_hint`; this table records 
 |---|---|---|
 | 1 | `single_objective` | Section 1 is one sentence ending in a period. |
 | 2 | `bounded_scope` | Sections 2 and 3 each carry a bullet; section 3 may instead be "none" plus a rationale. |
+| 3 | `source_materials_count` | state.md `## Tool log` has ≥1 / 1 / 2 / 3 Agent entries with `status: ok` for trivial / small / medium / big; trivial alone may instead carry a "scope-bound, no exploration needed" entry. Skips without a state.md beside the spec. Fix: re-spawn research agents with sharper sub-queries. |
+| 3 | `source_citations_resolve` | Every `<path>:<line>[-<line>]` in section 6 names an existing file at least that long. |
 | 4 | `allowed_tools` | `tools_required` and section 7 agree on none versus a non-empty list. |
 | 6 | `budget` | `max_files_to_edit` and `max_lines_changed` are present (`null` is legal; `/geniro:implement`'s scope-drift trigger reads them); a missing `time_budget` only warns. |
 | 7 | `checkpoints` | Advisory, warn-only: with ≥5 steps, `checkpoints` is non-empty and its anchors resolve. |
+| 8 | `verify_command_nonempty` | Every `verify:` in section 9 has a non-empty command after it. |
 | 10 | `placeholder_scan` | The body (frontmatter is out of scope) carries no `TODO` / `XXX` / `FIXME` / `<placeholder>` / `[fill in]` / bare `...`. |
 | 11 | `schema_completeness` | Every required header is present with its exact `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` text, with no top-level section beyond them and the optional `## Considered Alternatives` / `## Milestones`. |
 | 12 | `workflow_refs_consistency` | Skipped on `m5-v1` or without `workflow_refs:`; missing required fields fail. A workflow file absent from cwd and the primary worktree (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A) only warns — it may appear later. |
@@ -50,30 +53,15 @@ Each script row carries its own finding text and `fix_hint`; this table records 
 
 **Ordering note (13).** The block is written at Phase 8.4, after Phase 7 and any Phase 7.5 pass, so Phase 7 never sees it. The present-branch fires at write time (`${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md` §8.4 runs the script on the rewritten spec before committing) and on re-validation in a later run over the same task-dir.
 
-**Judgment checks (3, 5, 8, 9)** carry their full rule, heuristic and fix hint below, because the orchestrator executes them.
+**Judgment checks (3, 5, 8, 9)** (3 and 8 keep only their judgment half) carry their full rule, heuristic and fix hint below, because the orchestrator executes them.
 
 ### 3. `source_materials`
 
-*Judgment.*
+*Judgment, with scripted halves.* `source_materials_count` (Agent entries with `status: ok` per tier) and `source_citations_resolve` (each section 6 `file:line` citation exists and is that long) are script rows; do not redo them.
 
-**Rule:** state.md `## Tool log` body has ≥1 Agent entry with `status: ok` per effort tier:
-- Trivial: ≥1 (OR explicit "scope-bound, no exploration needed" note)
-- Small: ≥1
-- Medium: ≥2
-- Big: ≥3
-
-Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial step, **each citation resolves**, and **each step this check exempts is named**.
-
-**Heuristic:** parse `## Tool log` YAML entries, count Agent + status:ok; for section 6, match a `<path>:<line>` or `<path>:<line>-<line>` reference anywhere on the step's line (the `- [ ] N.` checkbox prefix does not affect it).
-
-Then, per matched citation, decide two things a presence match cannot:
-
-- **Does it resolve?** The path exists and the file is at least that long. A citation into a file that has moved, shrunk, or never existed is a dangling coordinate that reads as grounding. Cheap to settle; settle it.
-- **Does it cover what the step asserts?** Read the cited span and compare it against the step's claim. A citation spanning two of six blocks passes a presence match while supporting a claim about all six, and one anchored a line off the deciding branch confirms a true line and a wrong step. Where a step asserts a quantity, the cited span must be the population that quantity was counted from, or the step needs a second citation that is.
+**Rule:** section 6 (Steps) cites ≥1 `file:line` reference per non-trivial step, and **each citation covers what the step asserts**: read the cited span against the step's claim. A citation spanning two of six blocks passes a presence match while supporting a claim about all six, and one anchored a line off the deciding branch confirms a true line and a wrong step. Where a step asserts a quantity, the cited span must be the population that quantity was counted from, or the step needs a second citation that is.
 
 **Naming the exemptions is part of the check.** "Non-trivial" is this check's own judgment, so a run can pass it by quietly reclassifying the steps it could not ground. Report every step treated as meta or trivial by number, with a one-line reason, in the verdict's output. An exemption a reader can see is a decision; one only the deciding run knew about is the check exempting itself.
-
-**Fix hint on fail:** "Phase 1 explore did not produce enough citations for effort tier <tier>. Re-spawn research agents with sharper sub-queries, OR if scope-bound, add explicit "scope-bound, no exploration needed" entry to ## Tool log."
 
 ### 5. `forbidden_actions`
 
@@ -91,11 +79,11 @@ Then, per matched citation, decide two things a presence match cannot:
 
 **Rule:** section 9 (Validation) has body content; either references a test type (`unit`, `integration`, `e2e`) OR specifies a manual-verification procedure.
 
-**Sub-rule (`verify:` shape, optional field):** if a section 9 criterion carries a `verify:` field, it must be a non-empty command string. Shape-only — the validator never executes the command; /geniro:implement runs it at end-of-phase. A criterion without `verify:` still passes — the check never requires the field. Attaching one wherever a single read-only command can prove the criterion is the authoring default (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` §9), an authoring bar rather than a validation bar.
+**`verify:` shape** is the script row `verify_command_nonempty` (a non-empty remainder, never executed). A criterion without `verify:` passes; attaching one wherever a single read-only command can prove the criterion is the authoring default (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` §9), an authoring bar rather than a validation bar.
 
-**Heuristic:** body-non-empty + keyword/regex match; for each `verify:` occurrence, assert the remainder of the line is non-empty after trimming whitespace.
+**Heuristic:** body-non-empty + keyword/regex match.
 
-**Fix hint on fail:** "Section 9 (Validation) is empty or doesn't reference a concrete verification method. Add either a test type OR a manual procedure (e.g., 'manual: navigate to /login, click OAuth button, verify redirect'). If a criterion declares `verify:`, give it a non-empty command (or drop the empty `verify:` line)."
+**Fix hint on fail:** "Section 9 (Validation) is empty or doesn't reference a concrete verification method. Add either a test type OR a manual procedure (e.g., 'manual: navigate to /login, click OAuth button, verify redirect')."
 
 ### 9. `stopping_condition`
 
