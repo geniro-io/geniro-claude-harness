@@ -51,7 +51,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 
 **Light spawns.** `test-runner-agent` runs as **light (smallest)** on every run, the first included. `knowledge-retrieval-agent` (the Phase 1 memory sweep), the Phase 2 code delegates (one class for the whole batch), the `codebase-research-agent` side queries of loop invariant S3, and the library-reuse-audit web-research spawn run as **light (mid)**. Every other spawn is `session`: the codebase-explorer, the spec-challenge verifiers, every Phase 3 reviewer-agent.
 
-**`--subagent-model <tier>` pins the `session` spawns for this run and caps the light ones.** Every spawn site reads the tier from state.md frontmatter `subagent-model:`, falling back to the `$ARGUMENTS` flag where the field is absent (Phase 1 before Step 4 writes it). When the run carries a tier, pass `model="<tier>"` at every `session` spawn — codebase-explorer, every Phase 3 reviewer-agent (built-in and custom, beating a custom reviewer's own declared `model:`), the spec-challenge verifiers. Light spawns take it only as a cap, when it names a cheaper tier than their class resolves to: the flag buys reasoning depth, which light work does not need. Values, the per-batch caching rule, and the fallback routes when the value is inexpressible: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. Announce the pinned tier once at run start. The flag has no chooser question: Phase 1 Step 1 parses it and Step 4 persists it, so a compaction does not revert spawns to their class.
+**`--subagent-model <tier>` pins the `session` spawns for this run and caps the light ones.** Every spawn site reads the tier from state.md frontmatter `subagent-model:`, falling back to the `$ARGUMENTS` flag where the field is absent (Phase 1 before Step 4 writes it). When the run carries a tier, pass `model="<tier>"` at every `session` spawn — codebase-explorer, every Phase 3 reviewer-agent (built-in and custom, beating a custom reviewer's own declared `model:`), the spec-challenge verifiers. Light spawns take it only as a cap, when it names a cheaper tier than their class resolves to: the flag buys reasoning depth, which light work does not need. Values, the per-batch caching rule, and the fallback routes when the value is inexpressible: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. Announce the pinned tier once at run start.
 
 ---
 
@@ -74,6 +74,7 @@ producer: implement
 schema-version: 1
 branch: <git-branch>
 worktree: <git-rev-parse-show-toplevel>
+spec_path: <root-relative spec; empty if inline>
 timestamp: <ISO-8601 UTC>
 phase: <state-machine-enum>
 status: in-progress

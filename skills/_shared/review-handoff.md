@@ -4,7 +4,7 @@ Detailed contract for `/geniro:review` Phase 6 (Action Gate Handoff). The `/geni
 
 State.md `phase: action-gate` during this phase.
 
-**Handoff schema version: `m6-v3`** (the producer writes `geniro_schema_version:` into the handoff frontmatter at its Phase 5.1 write — `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-5-6-emit-handoff.md` §5.1). Consumers accept `m6-v1`, `m6-v2`, and `m6-v3`. `m6-v3` carries the four verification fields (`Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence`) on every kept finding (CRITICAL / HIGH / MEDIUM) from the Phase 4.2 verifier, `## Deferred — sub-threshold` entries in the structured block schema (§"Deferred-entry schema"), and `[USER-ELECTED]` promotions from the §4.6 gate; `Validation:` admits `unverified`, which only the orchestrator assigns when no verifier ran. Older shapes read per §"Legacy handoffs".
+**Handoff schema version: `m6-v3`** (the producer writes `geniro_schema_version:` into the handoff frontmatter at its Phase 5.1 write — `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-5-6-emit-handoff.md` §"Handoff file write"). Consumers accept `m6-v1`, `m6-v2`, and `m6-v3`. `m6-v3` carries the four verification fields (`Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence`) on every kept finding (CRITICAL / HIGH / MEDIUM) from the Phase 4.2 verifier, `## Deferred — sub-threshold` entries in the structured block schema (§"Deferred-entry schema"), and `[USER-ELECTED]` promotions from the §4.6 gate; `Validation:` admits `unverified`, which only the orchestrator assigns when no verifier ran. Older shapes read per §"Legacy handoffs".
 
 ## Contents
 

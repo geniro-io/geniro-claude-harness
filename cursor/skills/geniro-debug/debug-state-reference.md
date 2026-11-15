@@ -2,7 +2,7 @@
 
 # Debug — detailed reference
 
-Detail sections the `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` spine and the phase files cite by section number — the numbers are citation targets and stay fixed.
+Detail sections the `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` spine and the phase files cite by section title.
 
 ## Contents
 

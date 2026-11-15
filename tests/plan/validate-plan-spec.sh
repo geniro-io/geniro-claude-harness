@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Suite for lib/validate-plan-spec.sh — the mechanical half of the
-# /geniro:plan Phase 7 validator (checks 1, 2, 4, 6, 7, 10, 11, 12, 13, 14).
+# /geniro:plan Phase 7 validator (checks 1, 2, 4, 6, 7, 10, 11, 12, 13, 14, plus the decidable halves of 3 and 8).
 #
 # Run: bash tests/plan/validate-plan-spec.sh
 # Exits non-zero on any failure.
@@ -181,6 +181,28 @@ WF_DIR=".geniro/work""flow"
 mkdir -p "$WF_DIR"
 : > "$WF_DIR/linear.md"
 
+
+# Files the clean spec's section 6 cites, and a state.md Tool log beside it, so
+# the source_materials rows have something real to resolve and count.
+mkdir -p src/jobs src/api src/db src/telemetry
+for f in src/jobs/BackfillQueue.ts src/api/routes.ts src/db/schema.ts src/jobs/UserBackfillJob.ts src/telemetry/aggregate.ts; do
+  awk 'BEGIN { for (i = 1; i <= 130; i++) print "// line " i }' > "$f"
+done
+write_state() {  # write_state <n-agent-ok-entries>
+  {
+    echo "## Tool log"
+    local i=0
+    while [ "$i" -lt "$1" ]; do
+      printf -- '- ts: 2026-05-17T10:4%s:13Z\n tool: Agent\n detail: "Research"\n status: ok\n' "$i"
+      i=$((i + 1))
+    done
+    echo "- ts: 2026-05-17T10:50:00Z"
+    echo " tool: Agent"
+    echo " status: error"
+  } > state.md
+}
+write_state 2
+
 # ---------------------------------------------------------------------------
 # Baseline — a clean spec passes all nine and exits 0
 # ---------------------------------------------------------------------------
@@ -188,10 +210,10 @@ mkdir -p "$WF_DIR"
 reset_spec
 mk_spec base.md
 rows="$(bash "$HELPER" base.md 2>/dev/null)"
-if [ "$(printf '%s\n' "$rows" | grep -c .)" -eq 10 ]; then
-  pass "clean spec emits one row per mechanical check (10 rows)"
+if [ "$(printf '%s\n' "$rows" | grep -c .)" -eq 13 ]; then
+  pass "clean spec emits one row per mechanical check (13 rows)"
 else
-  fail "clean spec emitted $(printf '%s\n' "$rows" | grep -c .) rows, expected 10"
+  fail "clean spec emitted $(printf '%s\n' "$rows" | grep -c .) rows, expected 13"
 fi
 if [ "$(printf '%s\n' "$rows" | awk -F'\t' '$2 != "pass"' | grep -c .)" -eq 0 ]; then
   pass "clean spec: every mechanical check passes"
@@ -202,7 +224,7 @@ expect_rc base.md 0 "clean spec exits 0"
 
 # Row shape: four TAB-separated fields, in check-number order.
 order="$(printf '%s\n' "$rows" | cut -f1 | tr '\n' ' ')"
-if [ "$order" = "single_objective bounded_scope allowed_tools budget checkpoints placeholder_scan schema_completeness workflow_refs_consistency launch_config_consistency effort_tier " ]; then
+if [ "$order" = "single_objective bounded_scope source_materials_count source_citations_resolve allowed_tools budget checkpoints verify_command_nonempty placeholder_scan schema_completeness workflow_refs_consistency launch_config_consistency effort_tier " ]; then
   pass "rows are emitted in check-number order"
 else
   fail "row order drifted: $order"
@@ -558,6 +580,55 @@ if command -v zsh >/dev/null 2>&1; then
 else
   echo "SKIP: zsh not available — cross-shell source checks not run."
 fi
+
+# ---------------------------------------------------------------------------
+# 3a source_materials_count / 3b source_citations_resolve / 8a verify_command_nonempty
+# ---------------------------------------------------------------------------
+
+write_state 1
+expect_status base.md source_materials_count fail "medium tier with one ok Agent entry (error entry not counted)"
+write_state 2
+expect_status base.md source_materials_count pass "medium tier with two ok Agent entries"
+reset_spec; TIER=big; mk_spec big.md
+expect_status big.md source_materials_count fail "big tier needs three"
+write_state 3
+expect_status big.md source_materials_count pass "big tier with three"
+reset_spec; TIER=trivial; mk_spec triv.md
+write_state 0
+expect_status triv.md source_materials_count fail "trivial tier with no Agent entry"
+printf -- '- ts: 2026-05-17T10:50:00Z\n tool: note\n detail: "scope-bound, no exploration needed"\n status: ok\n' >> state.md
+expect_status triv.md source_materials_count pass "trivial tier with the scope-bound note"
+reset_spec; TIER=medium; mk_spec med.md
+expect_status med.md source_materials_count fail "scope-bound note does not excuse a medium tier"
+write_state 2
+mkdir -p nostate && cp base.md nostate/spec.md
+expect_status nostate/spec.md source_materials_count skip "no state.md beside the spec"
+
+reset_spec
+SEC6='- [ ] 1. Add the queue in `src/jobs/BackfillQueue.ts:1-130`. <!-- step-1 -->
+- [ ] 2. Wire the route in `src/api/routes.ts:40`. <!-- step-2 -->'
+mk_spec cite-ok.md
+expect_status cite-ok.md source_citations_resolve pass "citations to existing, long-enough files"
+SEC6='- [ ] 1. Add the queue in `src/jobs/Gone.ts:1`. <!-- step-1 -->'
+mk_spec cite-missing.md
+expect_status cite-missing.md source_citations_resolve fail "citation to a file that does not exist"
+SEC6='- [ ] 1. Wire the route in `src/api/routes.ts:131`. <!-- step-1 -->'
+mk_spec cite-short.md
+expect_status cite-short.md source_citations_resolve fail "citation past the end of the file"
+SEC6='- [ ] 1. Wire the route in `src/api/routes.ts:100-131`. <!-- step-1 -->'
+mk_spec cite-range.md
+expect_status cite-range.md source_citations_resolve fail "citation range ending past the end of the file"
+SEC6='- [ ] 1. Call https://example.com:8080 and see src/api/routes.ts:40. <!-- step-1 -->'
+mk_spec cite-url.md
+expect_status cite-url.md source_citations_resolve pass "host:port in a URL is not a citation"
+
+reset_spec
+mk_spec verify-ok.md
+expect_status verify-ok.md verify_command_nonempty pass "verify: with a command"
+sed 's/^Unit tests on the queue service\. verify:.*/Unit tests. verify:   /' base.md > verify-empty.md
+expect_status verify-empty.md verify_command_nonempty fail "verify: with nothing after it"
+sed 's/^Unit tests on the queue service\. verify:.*/Unit tests on the queue service./' base.md > verify-none.md
+expect_status verify-none.md verify_command_nonempty pass "no verify: field at all"
 
 echo
 echo "Tests run:    $TESTS_RUN"

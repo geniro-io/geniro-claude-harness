@@ -517,6 +517,22 @@ else
   fail "update_semantic clobbered caller traps: INT='$int_trap' TERM='$term_trap'"
 fi
 
+# T4-30: the RETURN trap that fires after the explicit release must not delete a
+# lock another process acquired in that window (simulated from inside the release).
+new_sandbox
+eval "_us_restore_traps_orig() $(declare -f _us_restore_traps | tail -n +2)"
+_us_rival_done=0
+_us_restore_traps() {
+  _us_restore_traps_orig
+  if [ "$_us_rival_done" -eq 0 ]; then _us_rival_done=1; : > .geniro/planning/.codebase-map.lock; fi
+}
+update_semantic --file codebase-map --append "- rival window" >/dev/null 2>&1
+if [ -e .geniro/planning/.codebase-map.lock ]; then
+  pass "lock acquired by a rival after release survives the RETURN trap"
+else
+  fail "RETURN trap deleted a lock a rival acquired after release"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

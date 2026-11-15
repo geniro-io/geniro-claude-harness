@@ -50,6 +50,9 @@ _geniro_lock_reclaim_secs() {
 # exactly one of several racing reclaimers wins (a check-then-rmdir lets two both
 # "win", the second deleting a fresh lock the first's caller just acquired), then
 # remove the moved copy. rc 0 = reclaimed or already absent; rc 1 = fresh / held.
+# Known limitation (accepted): only one reclaimer removes a stale lock, but two
+# acquirers racing in the same instant can both acquire, since the lock is briefly
+# absent while a rival checks its age.
 # Usage: _geniro_reclaim_stale_lock <path> <secs>
 _geniro_reclaim_stale_lock() {
   local p="${1:-}" secs="${2:-}" m dst

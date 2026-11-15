@@ -125,7 +125,7 @@ What to NOT flag:
 <!-- append the Verification-Surface stub below -->
 ```
 
-**Data-Sources stub** — the single copy. Append it verbatim under the `## Data Sources` heading of the `global`, `plan`, `implement`, `review`, `resolve`, `debug`, `investigate` scaffolds, the skills that read the block, so users discover the verification primitive. Leave the entries commented — an empty block is the safe default.
+**Data-Sources stub** — the single copy. Append it verbatim under the `## Data Sources` heading of the `global` scaffold and the scaffolds of the skills that read the block (`_VIF_DATA_SOURCES_SCOPES` in `${CLAUDE_PLUGIN_ROOT}/lib/validate-instructions-file.sh`), so users discover the verification primitive. Leave the entries commented — an empty block is the safe default.
 
 ```markdown
 <!-- Optional. Read-only sources to cross-check load-bearing facts against (task statuses, the spec's cited claims). Commands have to be read-only — the verification step runs them unattended. Contract: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md -->
@@ -133,7 +133,7 @@ What to NOT flag:
 <!-- - **deploy-state** (confirms: did it ship?) — MCP tool `mcp__deploys__get_release_state` -->
 ```
 
-**Verification-Surface stub** — the single copy, appended verbatim under the `## Verification Surface` heading of the `global`, `implement`, `review`, `debug`, `investigate`, `refactor` scaffolds (the skills applying the evidence standard), on the same commented-by-default basis. Both clauses are required per entry: the does-not-cover half is what bounds how wide a claim about a green run may be stated, and it is the half a reader cannot derive from the command name.
+**Verification-Surface stub** — the single copy, appended verbatim under the `## Verification Surface` heading of the `global` scaffold and the scaffolds in `_VIF_VERIFICATION_SURFACE_SCOPES` (same script), on the same commented-by-default basis. Both clauses are required per entry: the does-not-cover half is what bounds how wide a claim about a green run may be stated, and it is the half a reader cannot derive from the command name.
 
 ```markdown
 <!-- Optional. One bullet per check: the command, the ground it covers, and the ground it does NOT cover. A MANUAL row names ground no command reaches. Contract: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-surface.md -->
@@ -220,8 +220,8 @@ An `Additional Steps` subsection must be `### After <phase>` (validate normalize
 
 | Scope | Legal anchor | Execution site |
 |---|---|---|
-| `implement` | `After analyze` (pre-code — e.g. the product-discovery conversation an inline-task run has no spec to answer) | `implement/phase-1-analyze.md` Step 12.6 |
-| `implement` | `After ship` | `implement/phase-3-ship.md` §8.2 / `implement-reference.md` §Custom post-ship steps |
+| `implement` | `After analyze` (pre-code — e.g. the product-discovery conversation an inline-task run has no spec to answer) | `implement/phase-1-analyze.md` "Custom post-analyze steps" |
+| `implement` | `After ship` | `implement/phase-3-ship.md` "Integration Updates" / `implement-reference.md` §Custom post-ship steps |
 | `plan` | `After explore` (post-research, pre-grill — e.g. a discovery stage the approaches must be sized against) | `plan/loop-phase-1-explore.md` §1.5 "Custom post-explore steps" |
 | `plan` | `After user-approve` (post-approval/commit — e.g. duplicate the plan into OpenSpec) | `plan/loop-phase-8-user-approval.md` §8.6 |
 | `refactor` | `After verify` | `refactor/phase-3-verify.md` §3.6 |

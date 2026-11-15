@@ -150,6 +150,27 @@ if command -v git >/dev/null 2>&1; then
   # -- audit T0-4: coproc runs its command
   parity "coproc git add -f"                stage   'coproc git add -f .geniro/actions/x.md'
   parity "coproc { git add -f; }"           stage   'coproc { git add -f .geniro/actions/x.md; }'
+  # -- round 2: nested substitution prefix, named coproc
+  parity "nested \$(dirname \$(pwd)) prefix"  stage   'cd sub 2>/dev/null; git add -f "$(dirname "$(pwd)/x")/.geniro/actions/x.md"'
+  parity "nested \$(…\$(…)) prefix, unquoted" stage   'git add -f $(dirname $(echo $PWD/x))/.geniro/actions/x.md'
+  parity "nested substitution, non-.geniro path" nostage 'git add -f "$(dirname "$(pwd)/x")/README.md"'
+  parity "coproc NAME { git add -f; }"      stage   'coproc NAME { git add -f .geniro/actions/x.md; }'
+  parity "coproc NAME git add -f"           nostage 'coproc NAME git add -f .geniro/actions/x.md'
+  # -- round 2: forced whole-tree adds in a repo whose root has .geniro/
+  parity "git add -f ."                     stage   'git add -f .'
+  parity "git add --force ./"               stage   'git add --force ./'
+  parity "git add -f :/"                    stage   "git add -f ':/'"
+  parity "git add -f :(top)"                stage   "git add -f ':(top)'"
+  parity "git add -f -A"                    stage   'git add -f -A'
+  parity "git add -fA cluster"              stage   'git add -fA'
+  parity "git add --all -f"                 stage   'git add --all -f'
+  parity "git stage -f ."                   stage   'git stage -f .'
+  parity "git -C . add -f ."                stage   'git -C . add -f .'
+  parity "git add -f . README.md"           stage   'git add -f . README.md'
+  parity "git add . (no -f)"                nostage 'git add .'
+  parity "git add -A (no -f)"               nostage 'git add -A'
+  parity "git add -f src/"                  nostage 'mkdir -p src && touch src/a && git add -f src/'
+  parity "git add -f with no pathspec"      nostage 'git add -f'
   # -- T0-5: heredoc detection must not swallow the lines after it
   parity "hyphenated heredoc tag, force-add after it" stage \
     "$(printf 'cat >/dev/null <<END-NOTE\nbody\nEND-NOTE\ngit add -f .geniro/actions/x.md')"
@@ -242,6 +263,21 @@ expect_block "an unclosed arithmetic << is scanned, not dropped" \
   "$(run_cmd "$(printf 'echo $((1<<n))\nnotes\ngit add -f .geniro/x')")"
 expect_block "a heredoc closed by the wrong tag is scanned" \
   "$(run_cmd "$(printf 'cat <<END-NOTE >/dev/null\nbody\nEND\ngit add -f .geniro/x')")"
+
+# ===== forced whole-tree add without a .geniro/ directory passes =====
+mkdir -p "$TMPDIR_BASE/plain/.git"
+for c in 'git add -f .' 'git add -f -A' "git add -f ':/'" 'git add --force ./'; do
+  expect_allow "no .geniro/ at the repo root: $c" "$(cd "$TMPDIR_BASE/plain" && run_cmd "$c")"
+done
+expect_allow "a forced glob pathspec stays out of scope" "$(cd "$TMPDIR_BASE/parity" && run_cmd "git add -f '*.md'")"
+expect_block "whole-tree block names the problem" \
+  "$(cd "$TMPDIR_BASE/parity" && run_cmd 'git add -f .')"
+WT_MSG="$(cd "$TMPDIR_BASE/parity" && printf '%s' '{"tool_input":{"command":"git add -f ."}}' | bash "$HOOK" 2>&1 >/dev/null)"
+if printf '%s' "$WT_MSG" | grep -q 'whole tree' && printf '%s' "$WT_MSG" | grep -q 'git-add-force-geniro'; then
+  pass "whole-tree block message says so and names the bypass"
+else
+  fail "whole-tree block message unclear: $WT_MSG"
+fi
 
 # ===== everything else passes =====
 expect_allow "force-with-lease-ish typo not read as force" "$(run_cmd 'git add --force-with-lease-ish .geniro/x')"

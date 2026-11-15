@@ -130,7 +130,7 @@ Spawns are **session** (no `model=`) unless a site names a light class (`${CLAUD
 
 ## Phase 5 — Persist & emit
 
-`phase: persist` · Steps: `phase-5-6-emit-handoff.md` §5.0, §5.1 and §5.3-§5.5. Exit when `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` exists via `atomic_state_write` with `report_status: draft` and structured `open_questions[]`, and the §5.3 convergence emits have run.
+`phase: persist` · Steps: Phase 5 of `phase-5-6-emit-handoff.md`. Exit when `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` exists via `atomic_state_write` with `report_status: draft` and structured `open_questions[]`, and the §5.3 convergence emits have run.
 
 ## Phase 6 — Action gate handoff
 

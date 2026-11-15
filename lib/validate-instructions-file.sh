@@ -77,6 +77,12 @@ if [ -z "${_VIF_DEPS_LOADED:-}" ]; then
   # home skills/_shared/dropped-skills.md §The list.
   readonly _VIF_DROPPED_SKILLS_RE='(^|[^/A-Za-z0-9_.-])/(brainstorm|decompose|follow-up|deep-simplify|features|learnings|cleanup|vendor)([^/A-Za-z0-9_.-]|$)'
 
+  # Scopes that read each optional block; the single home for these lists —
+  # instructions-authoring-reference.md cites this script. `global` always
+  # allowed. A block in any other scope's file never loads (block-unconsumed).
+  readonly _VIF_DATA_SOURCES_SCOPES="plan implement review resolve debug investigate"
+  readonly _VIF_VERIFICATION_SURFACE_SCOPES="implement review debug investigate refactor"
+
   _VIF_DEPS_LOADED=1
 fi
 
@@ -217,6 +223,27 @@ validate_instructions_file() {
   if [ -n "$illegal_line" ]; then
     _vif_row MEDIUM anchor-illegal "$illegal_line" "$illegal_msg"
     warning=1
+  fi
+
+  # --- Check: Data Sources / Verification Surface block in a non-consuming scope
+  local blk consumers
+  if [ "$scope" != "global" ]; then
+    for blk in "Data Sources" "Verification Surface"; do
+      if [ "$blk" = "Data Sources" ]; then
+        consumers="$_VIF_DATA_SOURCES_SCOPES"
+      else
+        consumers="$_VIF_VERIFICATION_SURFACE_SCOPES"
+      fi
+      case " $consumers " in
+        *" $scope "*) continue ;;
+      esac
+      local blk_line
+      blk_line="$(grep -nE "^##[[:space:]]+${blk}[[:space:]]*$" "$target" | head -n 1 || true)"
+      if [ -n "$blk_line" ]; then
+        _vif_row LOW block-unconsumed "${blk_line%%:*}" "'## $blk' in $(basename "$target") never loads — scope '$scope' does not read it (read by: $consumers, or global.md)"
+        warning=1
+      fi
+    done
   fi
 
   if [ "$blocking" -eq 1 ]; then

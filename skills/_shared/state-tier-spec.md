@@ -267,6 +267,7 @@ Producers MAY add fields (e.g., `task_slug`, `mode`, `effort_tier`, `round`, `ri
 
 **`/geniro:implement` producer-specific fields:**
 
+- `spec_path: <path>` — resolved spec file, project-root-relative, empty for an inline task; `task-chain-context.md` §4 reads it to mark a milestone `done`.
 - `spawn_dims_declared: [<dim-slug>, ...]` / `spawn_dims_count: <int>` — same two fields as the `/geniro:review` entry above, written at this skill's own Phase 3 Step 1 before its reviewer batch fires (the grid scales by `change_scope`). Consumed by Phase 3 Step 2's Round-1 declared-vs-returned check.
 - `todos_declared: [<slug>, ...]` / `todos_declared_count: <int>` — the todo set authored at Phase 2 decomposition, one short slug per todo, written before any todo is marked `in_progress` (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md` §Step 2). Consumed by Ship Step 2's first read (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-3-ship.md`), which requires every entry to be `completed` or dropped with a stated reason before the commit.
 - `reviewed_file_set: [<path>, ...]` and `reviewed_file_hashes: [<path>@<hash>, ...]` — frontmatter lists of every file the Phase 3 fix loop reviewed or edited (the union of every round's CHANGED FILES plus every path a fix, nit, or authored test touched) and each one's hash as the loop left it, set by `atomic_state_set_field` at the loop's exit once the `## Deferred Findings` body section has landed via `atomic_state_append_section` (`${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Bounded fix loop"). Ship's commit-time review-coverage guard (same file, §"Commit + Push + PR" Step 2) treats a file missing from the set, or whose hash no longer matches, as diverged.
@@ -309,7 +310,7 @@ Single source of truth for the body-section column set that records a hand-autho
 Columns: **# / Path / Targeted source / Category / Confidence / F→P status**.
 
 Two producers use this exact column set:
-- `/geniro:debug` Adversarial Mode — `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2, body section `## Authored Tests` of `.geniro/state/debug/<slug>/state.md`.
+- `/geniro:debug` Adversarial Mode — `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §"State file schema", body section `## Authored Tests` of `.geniro/state/debug/<slug>/state.md`.
 - `/geniro:implement` Phase 3 edge-case test authoring — `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Edge-case test authoring", body section `## Authored Tests` of the task-dir `state.md`.
 
 ---
