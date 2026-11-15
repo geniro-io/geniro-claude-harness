@@ -40,7 +40,7 @@ seed_task_dir() {
   : > "$d/.spec-challenge-out.md"
   : > "$d/.research-out.md"
   : > "$d/.research-backend.md"          # per-facet
-  : > "$d/.research-critique-approach-a.md"  # Phase 4 critique
+  : > "$d/.research-critique.md"  # Phase 4 critique
   : > "$d/notes.md"
   : > "$d/ui-verify.png"           # superseded name, still swept
   : > "$d/playwright-verify.png"   # legacy name, still swept

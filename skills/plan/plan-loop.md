@@ -9,6 +9,7 @@ Canonical phase pattern for `/geniro:plan`, and the spine of the loop: the phase
 - HARD-GATE
 - Gate presentation contract (+ Visual rendering language)
 - Echo contract
+- Spec writes
 - Spawn contract
 - Phase files — the pointer table
 - Terminal states
@@ -63,6 +64,12 @@ Each Phase 1 research spawn appends a structured entry to state.md `## Tool log`
 ```
 
 Phase 7's `source_materials` check counts the Agent entries with `status: ok` against the per-tier minimum in `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` (check 3). The Echo contract makes "no related code found" auditable via SessionStart re-injection.
+
+---
+
+## Spec writes
+
+Before any change to spec.md or a `milestone-N.md`, read the file's current content from disk and make the change starting from that content, never by re-writing it from the draft held in context — span edits and a compaction both leave that draft stale or summarized. Apply it at §6.1, §6.3, §6.4, Phase 7 auto-revision, §7.5.2, §8.3 and §8.4.
 
 ---
 

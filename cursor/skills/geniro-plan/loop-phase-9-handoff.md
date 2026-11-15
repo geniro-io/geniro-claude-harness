@@ -13,7 +13,7 @@ State.md `phase: handoff` during this phase. Non-interactive — no AskQuestion 
 
 ### 9.2 Clean up transient working files
 
-Before the terminal `phase:` write, remove this run's scratch outputs from the planning task-dir — the per-facet `.research-<facet>.md`, the Phase 4 `.research-critique-*.md` and `.research-design-*.md`, the `.spec-challenge-out.md`, and any `notes.md`. Rationale is in the spine §Terminal states; in a milestone-sliced plan `/geniro:implement` runs in a different task-dir and never reaches these, so this cleanup is the only one that does.
+Before the terminal `phase:` write, remove this run's scratch outputs from the planning task-dir — the per-facet `.research-<facet>.md`, the Phase 4 `.research-critique.md` and `.research-design-*.md`, the `.spec-challenge-out.md`, and any `notes.md`. Rationale is in the spine §Terminal states; in a milestone-sliced plan `/geniro:implement` runs in a different task-dir and never reaches these, so this cleanup is the only one that does.
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/clean-task-transients.sh"
