@@ -94,6 +94,22 @@ if command -v git >/dev/null 2>&1; then
     fi
   }
 
+  # `coproc` needs bash >= 4, and macOS /bin/bash is 3.2: there git's behavior
+  # cannot be observed, yet the guard must still block the literal spelling
+  # (zsh and bash >= 4 both run it), so the guard half is asserted everywhere.
+  HAS_COPROC=0
+  bash -c '[ "${BASH_VERSINFO[0]:-0}" -ge 4 ]' >/dev/null 2>&1 && HAS_COPROC=1
+  parity_coproc() {  # same arguments as parity
+    if [ "$HAS_COPROC" = 1 ]; then parity "$@"; return; fi
+    local guard
+    guard="$(cd "$PARITY" && run_cmd "$3")"
+    if [ "$2" = stage ]; then
+      expect_block "parity: $1 (bash < 4: guard only)" "$guard"
+    else
+      expect_allow "parity: $1 (bash < 4: guard only)" "$guard"
+    fi
+  }
+
   P="$PARITY"
   # -- the force flag, every spelling
   parity "git add -f"                       stage   'git add -f .geniro/actions/x.md'
@@ -148,14 +164,14 @@ if command -v git >/dev/null 2>&1; then
   parity "pathspec glob '.geniro*'"         stage   "git add -f '.geniro*'"
   parity "glob .geniro-notes*"              nostage 'git add -f .geniro-notes*'
   # -- audit T0-4: coproc runs its command
-  parity "coproc git add -f"                stage   'coproc git add -f .geniro/actions/x.md'
-  parity "coproc { git add -f; }"           stage   'coproc { git add -f .geniro/actions/x.md; }'
+  parity_coproc "coproc git add -f"                stage   'coproc git add -f .geniro/actions/x.md'
+  parity_coproc "coproc { git add -f; }"           stage   'coproc { git add -f .geniro/actions/x.md; }'
   # -- round 2: nested substitution prefix, named coproc
   parity "nested \$(dirname \$(pwd)) prefix"  stage   'cd sub 2>/dev/null; git add -f "$(dirname "$(pwd)/x")/.geniro/actions/x.md"'
   parity "nested \$(…\$(…)) prefix, unquoted" stage   'git add -f $(dirname $(echo $PWD/x))/.geniro/actions/x.md'
   parity "nested substitution, non-.geniro path" nostage 'git add -f "$(dirname "$(pwd)/x")/README.md"'
-  parity "coproc NAME { git add -f; }"      stage   'coproc NAME { git add -f .geniro/actions/x.md; }'
-  parity "coproc NAME git add -f"           nostage 'coproc NAME git add -f .geniro/actions/x.md'
+  parity_coproc "coproc NAME { git add -f; }"      stage   'coproc NAME { git add -f .geniro/actions/x.md; }'
+  parity_coproc "coproc NAME git add -f"           nostage 'coproc NAME git add -f .geniro/actions/x.md'
   # -- round 2: forced whole-tree adds in a repo whose root has .geniro/
   parity "git add -f ."                     stage   'git add -f .'
   parity "git add --force ./"               stage   'git add --force ./'
