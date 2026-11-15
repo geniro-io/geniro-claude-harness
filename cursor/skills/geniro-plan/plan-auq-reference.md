@@ -395,7 +395,7 @@ options:
   - label: "Approve — commit the plan"   # Recommended
     description: "Commits the plan (if the project tracks its planning folder) and this run's glossary and decision-record notes, then prints the /geniro:implement command."
   - label: "Request changes — I'll describe"
-    description: "Name the sections to change and what to change — I'll revise and re-check just those."
+    description: "Name the sections to change and what to change — I'll revise those sections and anything that depends on them."
   - label: "Abort — stop planning"
     description: "Ends planning here — nothing is committed, and spec.md stays on disk for you to keep or delete."
 ```
