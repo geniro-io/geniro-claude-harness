@@ -58,10 +58,10 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 **Task directory**:
 
 ```
-.geniro/planning/<task-slug>/
+<PLANNING_ROOT>/<task-slug>/
 ```
 
-Where `<task-slug>` is derived from $ARGUMENTS / spec.md filename / git branch per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`. Created at start of Phase 1.
+`<PLANNING_ROOT>`: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Path roots. `<task-slug>` is derived from $ARGUMENTS / spec.md filename / git branch per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`. Created at start of Phase 1.
 
 **State.md frontmatter:**
 

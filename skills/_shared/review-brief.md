@@ -52,18 +52,7 @@ The reviewers' independence from each other is what makes their findings worth a
 The brief materializes as one of two forms, and the run asks the user which:
 
 - **A published Artifact** — offered only where the session can actually publish one. Under Cursor and any other host without that capability, the option does not appear at all (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` maps `Artifact` to skip). Author the page as a self-contained HTML file in the session scratchpad and publish it from there; load the `artifact-design` skill before writing it — the same authoring path `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` §Availability detection & create takes for its own page. The file medium below needs none of this.
-- **A markdown file** at `<repo-root>/.geniro/state/review/brief-<branch>-<date>.md`, written with `atomic_state_write`. Resolve `<repo-root>` in the same Bash call that writes:
-
-  ```bash
-  source "${CLAUDE_PLUGIN_ROOT}/lib/repo-root.sh"
-  PRIMARY_ROOT="$(_geniro_repo_root)"
-  source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
-  atomic_state_write "$PRIMARY_ROOT/.geniro/state/review/brief-<branch>-<date>.md" <<EOF
-  <brief content>
-  EOF
-  ```
-
-  Resolving through `_geniro_repo_root` rather than a bare walk-up matters specifically inside a linked worktree, where a second, wrong `.geniro/` root is otherwise reachable (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Path roots).
+- **A markdown file** at `review-brief-<date>.md` beside the review handoff, `$(dirname "$(_geniro_handoff_target review <branch>)")` (`source "${CLAUDE_PLUGIN_ROOT}/lib/unit-dir.sh"` in the same Bash call), written with `atomic_state_write`.
 
 When only one medium is available, take it without asking — a question with one possible answer is a wasted turn. When a publish is attempted and fails (no plan entitlement, no active session), fall back to the markdown file, update the persisted `brief:` setting to `file` so it matches what was actually produced, and say so in one line.
 

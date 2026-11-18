@@ -18,7 +18,7 @@ Treat the token as a candidate path. Resolve relative paths against the current 
 
 **If the token resolves to an existing file:** evaluate the three detection markers below. **Defense in depth — accept ANY of:**
 
-1. **Path-based** — the resolved path matches the glob `.geniro/planning/**/*.md` (any depth under `.geniro/planning/`, file extension `.md`).
+1. **Path-based** — the path matches `.geniro/planning/**/*.md` (any depth), except `state.md`, `questionnaire.md`, `review.md`, `debug.md`, `debug-adversarial.md`, `review-brief-*.md`, `investigate-*.md`.
 2. **HTML marker** — the file's first 20 lines contain the literal string `<!-- geniro:design-doc -->` (case-sensitive, exact match).
 3. **YAML frontmatter** — the file begins with `---` on line 1, and within the frontmatter block (between the opening `---` and the next `---`) there is a line matching `geniro_kind: design-doc` (whitespace-tolerant around the colon, value exact match).
 
@@ -38,7 +38,7 @@ if token is empty: return None # consumer handles empty-arg AUQ
 
 path = resolve_to_cwd(token)
 if file_exists(path):
- if path matches ".geniro/planning/**/*.md": return DESIGN_DOC(path)
+ if path matches ".geniro/planning/**/*.md" and not excluded (see 1): return DESIGN_DOC(path)
  if read_first_n_lines(path, 20) contains "<!-- geniro:design-doc -->": return DESIGN_DOC(path)
  if has_yaml_frontmatter(path) and "geniro_kind: design-doc" in frontmatter(path): return DESIGN_DOC(path)
  return CODE_REFERENCE(path)

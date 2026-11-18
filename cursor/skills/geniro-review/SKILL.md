@@ -41,7 +41,7 @@ State.md `phase:` enum transitions:
 └── aborted ── (round-limit / safety / tool-unavailable)
 ```
 
-**Terminal states:** `done` (includes a Phase 6 handoff line), `aborted` (writes a `## Termination reason` body section), `escalated` (round-limit hand-off; the reason lands in `## Open Questions` — mapping: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §9). A review resumes only when the user re-invokes `/geniro:review`: Phases 1-4 persist directly to `from-review-<branch>.md` (the handoff file — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"`/review`" producer note), which the SessionStart restore hook does not surface. Re-invoking rolls every **non-terminal** state back to phase-entry and re-runs from there — idempotent, because `approvals[]` makes the Phase 6 AUQ skip already-answered picks.
+**Terminal states:** `done` (includes a Phase 6 handoff line), `aborted` (writes a `## Termination reason` body section), `escalated` (round-limit hand-off; the reason lands in `## Open Questions` — mapping: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §9). A review resumes only when the user re-invokes `/geniro:review`: Phases 1-4 persist directly to the unit dir's `review.md` (the handoff file — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"`/review`" producer note), which the SessionStart restore hook does not surface. Re-invoking rolls every **non-terminal** state back to phase-entry and re-runs from there — idempotent, because `approvals[]` makes the Phase 6 AUQ skip already-answered picks.
 
 **After a compaction, re-Read the phase file for the phase `phase:` says you are resuming** — a phase reconstructed from a summary's recollection is how a spawn batch or a gate gets skipped.
 
@@ -129,7 +129,7 @@ Spawns are **session** (no `model=`) unless a site names a light class (`${CLAUD
 
 ## Phase 5 — Persist & emit
 
-`phase: persist` · Steps: Phase 5 of `phase-5-6-emit-handoff.md`. Exit when `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` exists via `atomic_state_write` with `report_status: draft` and structured `open_questions[]`, and the §5.3 convergence emits have run.
+`phase: persist` · Steps: Phase 5 of `phase-5-6-emit-handoff.md`. Exit when `$(_geniro_handoff_target review <branch>)` exists via `atomic_state_write` with `report_status: draft` and structured `open_questions[]`, and the §5.3 convergence emits have run.
 
 ## Phase 6 — Action gate handoff
 

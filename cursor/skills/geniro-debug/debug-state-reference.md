@@ -100,9 +100,9 @@ Body sections (Adversarial Mode):
 - `## Re-verification Results` (per authored test, written by A4 step 3: path / F→P + flake-check status / kept or discarded / discard reason if discarded)
 - `## Tool log`, `## Errors`, `## Termination reason`
 
-### from-debug-<branch>.md (T2 — handoff, Scientific Mode)
+### debug.md (T2 — handoff, Scientific Mode)
 
-Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`. Single file per branch, overwritten on next debug run.
+Path: `$(_geniro_handoff_target debug <branch>)`. Single file per branch, overwritten on next debug run.
 
 ```yaml
 ---
@@ -139,9 +139,9 @@ Debug-specific values within those schemas: `mode:` matches the handoff's top-le
 
 The `authored_tests[]` frontmatter array is the machine-readable source of truth for the F→P tests this debug run produced. Body lines `**Reproduction test:**` (scientific) and `**Test file:**` (adversarial, A6 template) remain as human-readable mirrors of this array. Consumers (notably /geniro:implement Phase 1 handoff-resolution step) prefer the frontmatter; legacy handoffs at `geniro_schema_version: m7-v1` lack this field, so the consumer protocol in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` falls back to body-string parsing in that case.
 
-### from-debug-adversarial-<branch>.md (T2 — handoff, Adversarial Mode)
+### debug-adversarial.md (T2 — handoff, Adversarial Mode)
 
-Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`. Same schema as from-debug-<branch>.md with `mode: adversarial` and `phase: adversarial-ship` discriminators. Body: A6 Adversarial Findings template + body sections.
+Path: `$(_geniro_handoff_target debug-adversarial <branch>)`. Same schema as debug.md with `mode: adversarial` and `phase: adversarial-ship` discriminators. Body: A6 Adversarial Findings template + body sections.
 
 ---
 

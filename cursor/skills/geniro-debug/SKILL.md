@@ -44,7 +44,7 @@ context: main
 
 ## Your role — investigate, don't ship
 
-You investigate. You isolate. You propose. You do not apply the fix. Phase 3 handoff is a text proposal + reproduction test on disk + a handoff file at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`. Downstream consumers (`/geniro:implement`, manual user action) apply the patch.
+You investigate. You isolate. You propose. You do not apply the fix. Phase 3 handoff is a text proposal + reproduction test on disk + a handoff file at `$(_geniro_handoff_target debug <branch>)`. Downstream consumers (`/geniro:implement`, manual user action) apply the patch.
 
 ---
 
@@ -130,7 +130,7 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 
 ## State file schema
 
-T1.5 state.md frontmatter (categories `branch_freshness`, `disambiguate_mode`, `multi_path_fix`, `verification_stalled`, `existing_fix_pr`, `debug_workspace_setup` for `approvals[]`) + body sections (Scientific Mode + Adversarial Mode); T2 handoff schemas for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md` including the `open_questions[]` contract — full schemas in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §"State file schema".
+T1.5 state.md frontmatter (categories `branch_freshness`, `disambiguate_mode`, `multi_path_fix`, `verification_stalled`, `existing_fix_pr`, `debug_workspace_setup` for `approvals[]`) + body sections (Scientific Mode + Adversarial Mode); T2 handoff schemas for `debug.md` and `debug-adversarial.md` including the `open_questions[]` contract — full schemas in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §"State file schema".
 
 `open_questions[]` entries carry `status: unresolved | resolved | wontfix`; an `unresolved` entry blocks the Phase 3 escalation until the §3.0 pre-gate clears it.
 
@@ -184,6 +184,6 @@ State file: `.geniro/state/debug/<slug>/state.md` (T1.5, `<slug>` per `${CLAUDE_
 
 ## REFERENCE
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` — state diagram, state/handoff schemas, infrastructure reference, stall taxonomy, adversarial templates, open-PR scan, emit payload shapes (see its own Contents).
+- `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` — state diagram, handoff schemas, infrastructure reference, stall taxonomy, adversarial templates, open-PR scan, emit payload shapes (see its own Contents).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Investigation-driven fix gate (debug-flavored) — multi-path fix gate and repro-infeasible escape hatch.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` — consumer protocol for downstream skills reading the handoffs this skill writes.

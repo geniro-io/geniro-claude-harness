@@ -2,15 +2,15 @@
 
 **Status:** Authoritative for consuming `/geniro:debug` T2 handoff files.
 
-When `/geniro:debug` ran earlier in the same project, it left T2 handoff files in the primary worktree — `from-debug-<branch>.md` (scientific mode) and/or `from-debug-adversarial-<branch>.md` (adversarial mode; paths in Step 1) — and authored regression tests at the project's normal test paths. Consumer skills detect those artifacts on startup and, if the authored tests are missing from the user's current working tree, surface a relocation suggestion (suggest only — never auto-execute cross-branch git operations) — an implementation about to start cannot run a regression test absent from its working tree.
+When `/geniro:debug` ran earlier in the same project, it left T2 handoff files in the branch's unit dir — `debug.md` (scientific mode) and/or `debug-adversarial.md` (adversarial mode; paths in Step 1) — and authored regression tests at the project's normal test paths. Consumer skills detect those artifacts on startup and, if the authored tests are missing from the user's current working tree, surface a relocation suggestion (suggest only — never auto-execute cross-branch git operations) — an implementation about to start cannot run a regression test absent from its working tree.
 
 ## Step 1: Scan
 
-Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the handoff files always live in the primary worktree's `.geniro/state/handoff/` regardless of where this scan runs from. Compute `<branch>` as the branch the consumer started on: the `CURRENT_BRANCH` it recorded before any workspace switch (`/geniro:implement` Step 0a), else `git branch --show-current` (fall back to detached-<short-sha> per the slug rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`) — debug named its handoff for the branch it ran on, so a key taken after a workspace switch never finds it. Glob the canonical paths; for each that exists, read fully.
+Compute `<branch>` as the branch the consumer started on: the `CURRENT_BRANCH` it recorded before any workspace switch (`/geniro:implement` Step 0a), else `git branch --show-current` (fall back to detached-<short-sha> per the slug rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`) — debug named its handoff for the branch it ran on, so a key taken after a workspace switch never finds it. Resolve each file with `_geniro_handoff_path <kind> <branch>` (`source "${CLAUDE_PLUGIN_ROOT}/lib/unit-dir.sh"` in the same Bash call); for each that exists, read fully.
 
 **Canonical paths:**
-- `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`
-- `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`
+- `_geniro_handoff_path debug <branch>` → `debug.md`
+- `_geniro_handoff_path debug-adversarial <branch>` → `debug-adversarial.md`
 
 If neither exists, this whole file is a no-op — skip to your next step.
 
@@ -19,7 +19,7 @@ If neither exists, this whole file is a no-op — skip to your next step.
 **Source-branch / source-worktree** (both handoff variants):
 - frontmatter `branch:` field → record as `debug-source-branch`. Falls back to body `**Source branch:**` line for legacy files.
 - frontmatter `worktree:` field → record as `debug-source-worktree`. Falls back to body `**Source worktree:**` line for legacy files.
-- When both variants are present, prefer the scientific `from-debug-<branch>.md` values; fall back to adversarial only when the scientific field is absent.
+- When both variants are present, prefer the scientific `debug.md` values; fall back to adversarial only when the scientific field is absent.
 
 **Original reproduction** (scientific handoff only): frontmatter `original_repro:` → record as `debug-original-repro`, the un-minimised command that reproduced the bug before debug shrank it. Absent on older handoffs and on runs with no runnable command — skip silently. The consumer runs it once after the fix (`/geniro:implement` Phase 2 §5.5); a non-zero exit means the bug still reproduces and is a failed check.
 
@@ -28,8 +28,8 @@ If neither exists, this whole file is a no-op — skip to your next step.
 1. Check frontmatter `geniro_schema_version` field on each handoff file present.
 2. **If `m7-v2` or later** — parse the frontmatter `authored_tests: [...]` array (see schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Producer-specific extensions). For each entry, take `path` and add to `authored-test-paths`. Skip entries with `f_to_p_status: escape-hatch` (they have no on-disk test file). Capture each entry's `intent`, `mode`, `f_to_p_status`, `related_hypotheses`, `targeted_source`, `confidence` alongside the path so downstream consumers can surface them in context summaries without re-reading the file.
 3. **If frontmatter lacks `authored_tests[]` (legacy `m7-v1`)** — fall back to body string parse:
-   - `from-debug-<branch>.md`: body `**Reproduction test:**` line → strip the path token (everything before the first comma or first `(`); trim whitespace. Skip if value is `none` or starts with `escape hatch:`.
-   - `from-debug-adversarial-<branch>.md`: for each body `**Test file:**` line → strip path token (everything before the first ` (` or first `:`); trim whitespace.
+   - `debug.md`: body `**Reproduction test:**` line → strip the path token (everything before the first comma or first `(`); trim whitespace. Skip if value is `none` or starts with `escape hatch:`.
+   - `debug-adversarial.md`: for each body `**Test file:**` line → strip path token (everything before the first ` (` or first `:`); trim whitespace.
 
 **When persisting to a state file** (e.g., implement's `<task-dir>/state.md` keys `Authored-tests:` / `Debug-source-branch:`): write `Authored-tests:` as comma-separated relative paths on one line (consumers split on `,` and trim each token before re-resolving) and `Original-repro:` as the command verbatim when present (never split on `,`). Optionally persist `Authored-tests-intent:` as a parallel comma-separated list (one per path, same order) from m7-v2+ frontmatter, so Phase 2 todo-decomposition keeps the per-test annotation.
 

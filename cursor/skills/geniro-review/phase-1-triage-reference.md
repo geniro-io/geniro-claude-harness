@@ -30,9 +30,9 @@ Step 0 fires BEFORE input-mode detect, scope resolution, PR-ref parsing, the tra
 
 ### 0-pre — Read prior approvals (FIRST, before passive detection)
 
-Two situations reach this sub-step. A **compaction-resume** is an in-flight run resuming mid-phase — a non-terminal `state.md` for the current run exists. A **fresh Round 2+ re-run** is the user invoking `/geniro:review` again — the prior round's `state.md` is terminal, only the durable `from-review-<branch>.md` handoff remains, and the §7 re-review gate is ASKED again, since the user chooses scope per run. The ONE pick re-applied on BOTH is the **workspace location**: re-asking it risks the silent-relocation bug this sub-step prevents.
+Two situations reach this sub-step. A **compaction-resume** is an in-flight run resuming mid-phase — a non-terminal `state.md` for the current run exists. A **fresh Round 2+ re-run** is the user invoking `/geniro:review` again — the prior round's `state.md` is terminal, only the durable `review.md` handoff remains, and the §7 re-review gate is ASKED again, since the user chooses scope per run. The ONE pick re-applied on BOTH is the **workspace location**: re-asking it risks the silent-relocation bug this sub-step prevents.
 
-1. Resolve the prior state/handoff for this branch (`<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A, plus the resumed `state.md` on a compaction-resume). With neither, this is a first run: skip to 0a with no inherited picks.
+1. Resolve the prior state/handoff for this branch (`_geniro_handoff_path review <branch>` from `${CLAUDE_PLUGIN_ROOT}/lib/unit-dir.sh`, plus the resumed `state.md` on a compaction-resume). With neither, this is a first run: skip to 0a with no inherited picks.
 2. Read the `approvals[]` category `review_workspace_setup`. It is **binding** on both run types (anti-relocation).
 3. **Honor the recorded location exactly** — re-enter the same worktree path the prior round approved. The pick names a specific tree; re-applying "a worktree" at a fresh default location is the silent-relocation failure.
 4. **Re-ask only when the pick no longer applies** — the approved worktree was deleted, or the branch moved off the commit it was created from. Then fire the workspace AUQ fresh.
@@ -44,9 +44,9 @@ Two situations reach this sub-step. A **compaction-resume** is an in-flight run 
 
 | Signal | How detected |
 |---|---|
-| `REVIEW_HANDOFF` | `.geniro/state/handoff/from-review-<CURRENT_BRANCH>.md` exists — a prior review of this branch |
-| `DEBUG_HANDOFF` | `.geniro/state/handoff/from-debug-<CURRENT_BRANCH>.md` exists — `/geniro:debug` authored repro tests for this branch |
-| `IMPLEMENT_TASK_STATE` | a `.geniro/planning/*/state.md` whose frontmatter `branch:` equals `CURRENT_BRANCH` |
+| `REVIEW_HANDOFF` | `_geniro_handoff_path review <CURRENT_BRANCH>` exists — a prior review of this branch |
+| `DEBUG_HANDOFF` | `_geniro_handoff_path debug <CURRENT_BRANCH>` exists — `/geniro:debug` authored repro tests for this branch |
+| `IMPLEMENT_TASK_STATE` | a `<PLANNING_ROOT>/*/state.md` (`_geniro_planning_root`) whose frontmatter `branch:` equals `CURRENT_BRANCH` |
 | `TARGET_PR_NUMBER` / `TARGET_WORKTREE_NAME` | the PR number from `$ARGUMENTS` and `pr-<N>-review`; null without a PR ref |
 | `IN_TARGET_WORKTREE` | `IN_WORKTREE` AND `CURRENT_TOPLEVEL`'s basename matches `TARGET_WORKTREE_NAME` |
 | `INPUT_SHAPE` | `pr-ref` / `branch` / `diff-range` / `files` / `empty`, from a quick `$ARGUMENTS` inspection (§1 routes definitively) |
@@ -161,7 +161,7 @@ Read `.geniro/workflow/*.md` integrations, apply each file's argument-detection 
 1. Glob `.geniro/workflow/*.md` cwd-local and under `<PRIMARY_ROOT>` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A), merged by basename with the cwd-local file winning. Zero matches: skip entirely.
 2. Read each file's `## Argument detection` patterns (Linear: the `https://linear\.app/.+/issue/([A-Z]+-\d+)` URL form and the `\b[A-Z]{2,}-\d+\b` bare ID).
 3. Apply them to `$ARGUMENTS`, then `pr.title`, then `pr.body`; the first match wins.
-4. **Merge in the spec's own tracker refs.** When a spec.md resolves (`--plan <path>`, a `geniro-plan:` PR-body line, a walk-up `.geniro/planning/*/spec.md`, or a canonical project path), merge its frontmatter `workflow_refs[]` by `(kind, issue_id)`; `$ARGUMENTS` wins on conflict because the user just typed it, then the PR body, then spec frontmatter. Accepted `geniro_schema_version`: `m5-v1` (treat `workflow_refs` as absent), `m5-v2`, `m5-v3` (entries also carry parent-epic + sibling chain fields), `m5-v4` (same, plus a `launch_config` block /geniro:review ignores).
+4. **Merge in the spec's own tracker refs.** When a spec.md resolves (`--plan <path>`, a `geniro-plan:` PR-body line, a walk-up `<PLANNING_ROOT>/*/spec.md`, or a canonical project path), merge its frontmatter `workflow_refs[]` by `(kind, issue_id)`; `$ARGUMENTS` wins on conflict because the user just typed it, then the PR body, then spec frontmatter. Accepted `geniro_schema_version`: `m5-v1` (treat `workflow_refs` as absent), `m5-v2`, `m5-v3` (entries also carry parent-epic + sibling chain fields), `m5-v4` (same, plus a `launch_config` block /geniro:review ignores).
 5. Persist the merged tracker ID to state.md frontmatter as `linear-task-ref: <ENG-123|null>` (`null` when nothing matched).
 
 ### 3.5.2 MCP fetch
@@ -213,7 +213,7 @@ Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `S
 
 ## 7. Step 0.5 — Round-N counter
 
-1. Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A; the state file is `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`.
+1. The state file is `_geniro_handoff_path review <branch>` (`${CLAUDE_PLUGIN_ROOT}/lib/unit-dir.sh`).
 2. Read it if present. Absent, or a skeleton with no `round:`: `prior-round-summary: none — first review` and `round: 1`.
 3. Present AND its `pr-ref:` matches this run's (literal compare; both `none` matches) — or this run's `pr-ref` is `none` and `INPUT_SHAPE == diff-range`, a bare commit-range follow-up on an existing handoff for this branch: set `round: <prior round + 1>` (prior defaults to `1`). Capture the prior `prior-round-summary:` for the `PRIOR-ROUND FINDINGS:` slot and `pr-body:` as `prior-pr-body` for the pr-metadata drift check. On the diff-range continuation also capture the file's non-`none` `pr-ref:` and `pr-body:`: step 6 writes them forward instead of this run's `none`/`null`, so a later PR-ref round still matches here and the drift check keeps a prior body. A different non-`none` `pr-ref` is round 1; rounds and repeat markers never cross targets. On round ≥2, mark repeats per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-5-6-emit-handoff.md` §"Repeat findings".
 4. After the increment, `round >= 3` gates. If `approvals[]` already holds a `round_n_escalation` pick from the prior round's Phase 6 gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §5), honor it instead of re-asking: Continue proceeds, Stop exits as below. Otherwise fire `AskQuestion` (header `"Round limit"`, question `"This is round N of review on the same target (substitute the actual round number for N). Continue or stop here?"`) with `"Continue review (Recommended)"` / `"Stop and summarize open items for me"`; at `round >= 6` (the hard ceiling, `review-handoff.md` §5) Continue is not offered and Stop is Recommended. On stop, record an `open_questions[]` entry (`source: round-n-gate`, the verbatim question, `status: unresolved`) mirrored into `## Open Questions` — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §9 reads an `escalated` run's reason there — persist `round:` and `prior-round-summary:`, and exit without spawning reviewers (terminal `escalated`).
@@ -228,7 +228,7 @@ Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `S
 
 ## 8. Step 0.6 — Load the plan or spec (schema-aware)
 
-Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md`. If `$ARGUMENTS` contains `--plan <path>`, OR PR body contains `geniro-plan: <path>`, OR walk-up `.geniro/planning/*/spec.md` resolves, OR project files exist (`docs/spec.md`, `docs/plan.md`, `PLAN.md`, `SPEC.md`): load.
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md`. If `$ARGUMENTS` contains `--plan <path>`, OR PR body contains `geniro-plan: <path>`, OR walk-up `<PLANNING_ROOT>/*/spec.md` resolves, OR project files exist (`docs/spec.md`, `docs/plan.md`, `PLAN.md`, `SPEC.md`): load.
 
 Schema-aware:
 1. Read first 20 lines. If `geniro_kind: design-doc` and `geniro_schema_version` is any version `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` §2 Detection accepts → structured-section parser (11 sections + frontmatter goal-state; per-version field additions — `workflow_refs[]`, parent-epic + sibling chain context, the optional `launch_config` block — are canonical there, absent = ask interactively).

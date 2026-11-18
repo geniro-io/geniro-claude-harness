@@ -23,13 +23,13 @@ Helpers reference this spec:
 
 ## Tier model
 
-Every state file in `.geniro/` belongs to exactly one tier, determined by its path root and lifecycle contract.
+Every state file in `.geniro/` belongs to exactly one tier, set by its §T1-table path (T1) or its frontmatter `tier:` (the rest) and lifecycle contract.
 
 | Tier | Purpose | Lifecycle | Worktree routing | Concurrency |
 |---|---|---|---|---|
-| **T1 — TASK ephemeral** | Transient subagent outputs / scratch (no frontmatter) | Created mid-run; deleted at the owning run's terminal exit | cwd-relative | path-scoped via `<task-dir>` |
-| **T1.5 — TASK durable** | Frontmatter-bearing task artifacts owned by one skill run, but needed by downstream consumer skills (`/geniro:review` spec-compliance, `/geniro:implement` Adjustment Routing, `/geniro:debug`, `/geniro:refactor`) | Created at Phase 0; only the `planning/<task-dir>/` layout **survives Phase Ship** — the `<skill>/<slug>/` and singleton layouts are deleted at their own owning skill's terminal exit (see §Who cleans what, and when) | cwd-relative, except the `/geniro:setup` singleton and `/geniro:review`'s optional brief, which route to the primary worktree | path-scoped via `<task-dir>` or `<skill>/<slug>` or singleton `<skill>/state.md` |
-| **T2 — HANDOFF** | Inter-skill data handoff | Created by producer; overwritten on next produce; not auto-deleted | primary-worktree (via `primary-worktree.md` Mode A) | branch-scoped path |
+| **T1 — TASK ephemeral** | Transient subagent outputs / scratch (no frontmatter) | Created mid-run; deleted at the owning run's terminal exit | `<PLANNING_ROOT>` | path-scoped via `<task-dir>` |
+| **T1.5 — TASK durable** | Frontmatter-bearing task artifacts owned by one skill run, but needed by downstream consumer skills (`/geniro:review` spec-compliance, `/geniro:implement` Adjustment Routing, `/geniro:debug`, `/geniro:refactor`) | Created at Phase 0; only the `planning/<task-dir>/` layout **survives Phase Ship** — the `<skill>/<slug>/` and singleton layouts are deleted at their own owning skill's terminal exit (see §Who cleans what, and when) | `<PLANNING_ROOT>` for the task-dir; the `/geniro:setup` singleton routes to the primary worktree, the rest cwd-relative | path-scoped via `<task-dir>` or `<skill>/<slug>` or singleton `<skill>/state.md` |
+| **T2 — HANDOFF** | Inter-skill data handoff | Created by producer; overwritten on next produce; not auto-deleted | inside the unit dir, `<PLANNING_ROOT>/<unit>/` | unit-scoped path |
 | **T3 — PERSISTENT** | Cross-session knowledge & user content | Never auto-deleted; CRUD or append-only | primary-worktree always | declared via `concurrency:` sub-attribute |
 
 **T1 vs T1.5 distinction.** T1 = ephemeral transient outputs without frontmatter — canonical list: the §T1 table below; they never pass through `validate_state_file` and are deleted at terminal exit via `${CLAUDE_PLUGIN_ROOT}/lib/clean-task-transients.sh` (`clean_task_transients <task-dir>` — the single source of the list). T1.5 = frontmatter-bearing durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) that downstream consumer skills read after the producing skill ships; the cleanup never touches them, so the user keeps them for audit or to re-run `/implement` against the same task-dir.
@@ -41,7 +41,7 @@ Every state file in `.geniro/` belongs to exactly one tier, determined by its pa
 | `/implement` | `clean_task_transients` before EVERY terminal `phase:` write — `done`, `aborted`, `debug-handoff`, `self-review-only`, `ship-committed-only` — not only the Ship path. |
 | `/plan` | `clean_task_transients` on `done` and `aborted`. A plan-only or milestone-sliced run would otherwise leave `.research-*.md` behind, since milestone slicing runs `/implement` in a different task-dir and it never reaches the parent planning dir. `/implement`'s own run stays a backstop. |
 | `/debug`, `/refactor`, `/onboard`, `/investigate`, `/audit-instructions`, `/resolve` | `rm -rf` the whole `.geniro/state/<skill>/<slug>/` dir — state.md plus any scratch written there. The `/geniro:update` migration walk scans only `.geniro/planning`, so nothing else would ever sweep these. `/audit-instructions` deletes its slug dir at the Phase 5 action gate; the dated report at `.geniro/state/audit-instructions/report-<date>.md` lives outside the slug dir and survives (§Path roots → T1.5). |
-| `/review` | Nothing — `from-review-<branch>.md` doubles as its working state and is a persistent T2 artifact, not scratch. Its optional brief, when written as a file, is a durable companion that survives by design so the user can read it during and after the review (§Path roots). |
+| `/review` | Nothing — `<unit>/review.md` doubles as its working state and is a persistent T2 artifact, not scratch. Its optional brief, when written as a file, is a durable companion that survives by design so the user can read it during and after the review (§Path roots). |
 | `/setup` | Deletes its singleton `<PRIMARY_ROOT>/.geniro/state/setup/state.md` at Phase Done — a singleton has no slug dir to remove (the `re-run` + `accept-with-warnings` carve-out that keeps the file is in the skill's own Done phase). |
 
 Transients left behind by an interrupted run are swept by the `/geniro:update` migration walk; that sweep is deliberately recurring rather than one-shot.
@@ -50,18 +50,22 @@ Transients left behind by an interrupted run are swept by the `/geniro:update` m
 
 ## Path roots
 
+### Planning root and unit dir
+
+`<PLANNING_ROOT>` is the current worktree's `.geniro/planning` unless git ignores that path, else the primary worktree's; a task-dir in a linked worktree's ignored tree is destroyed with it. One unit of work keeps its human-facing artifacts in one folder, the unit dir `<PLANNING_ROOT>/<unit>/`: `spec.md`, `state.md`, and the handoffs `review.md`, `debug.md`, `debug-adversarial.md`. A branch binds to its unit by a dir whose frontmatter `branch:` matches, else a name match on the branch slug or ticket id, else the slug. `${CLAUDE_PLUGIN_ROOT}/lib/unit-dir.sh` is authoritative (`_geniro_planning_root`, `_geniro_unit_dir`, `_geniro_handoff_target`, `_geniro_handoff_path`). Every `<task-dir>` below is a unit dir.
+
 ### T1 — ephemeral transient outputs (no frontmatter; deleted at terminal exit)
 
 | Path | Producer |
 |---|---|
-| `.geniro/planning/<task-dir>/.kr-out.md` | knowledge-retrieval-agent (subagent report) |
-| `.geniro/planning/<task-dir>/.ce-out.md` | codebase-explorer-agent (subagent report) |
-| `.geniro/planning/<task-dir>/.tr-out.md` | test-runner-agent (subagent report) |
+| `<PLANNING_ROOT>/<task-dir>/.kr-out.md` | knowledge-retrieval-agent (subagent report) |
+| `<PLANNING_ROOT>/<task-dir>/.ce-out.md` | codebase-explorer-agent (subagent report) |
+| `<PLANNING_ROOT>/<task-dir>/.tr-out.md` | test-runner-agent (subagent report) |
 | `.geniro/state/resolve/<slug>/.tr-out.md` | test-runner-agent (subagent report), `/resolve` |
-| `.geniro/planning/<task-dir>/.research-out.md` | codebase-research-agent (subagent report) |
-| `.geniro/planning/<task-dir>/.research-<facet>.md` | /plan Phase 1 per-facet research |
-| `.geniro/planning/<task-dir>/.spec-challenge-out.md` | spec-challenge pass scratch report (/plan Phase 7.5, /implement fact-check) |
-| `.geniro/planning/<task-dir>/notes.md` | Orchestrator ad-hoc scratch |
+| `<PLANNING_ROOT>/<task-dir>/.research-out.md` | codebase-research-agent (subagent report) |
+| `<PLANNING_ROOT>/<task-dir>/.research-<facet>.md` | /plan Phase 1 per-facet research |
+| `<PLANNING_ROOT>/<task-dir>/.spec-challenge-out.md` | spec-challenge pass scratch report (/plan Phase 7.5, /implement fact-check) |
+| `<PLANNING_ROOT>/<task-dir>/notes.md` | Orchestrator ad-hoc scratch |
 
 These files carry no frontmatter and never pass through `validate_state_file`; cleanup is per §Who cleans what, and when.
 
@@ -69,19 +73,19 @@ These files carry no frontmatter and never pass through `validate_state_file`; c
 
 | Path root | Layout | Producer category |
 |---|---|---|
-| `.geniro/planning/<task-dir>/` | Multi-file task-dir (`state.md` + `spec.md` + `questionnaire.md` + `plan-*.md` + `milestone-*.md` + `visual-*.png`) | **Task-bound skills** producing durable artifacts — `/geniro:implement`, `/geniro:plan` |
+| `<PLANNING_ROOT>/<task-dir>/` | Multi-file task-dir (`state.md` + `spec.md` + `questionnaire.md` + `plan-*.md` + `milestone-*.md` + `visual-*.png`) | **Task-bound skills** producing durable artifacts — `/geniro:implement`, `/geniro:plan` |
 | `.geniro/state/<skill>/<slug>/` | Subdir-per-slug; canonical `state.md` inside | **Session-bound skills** — `/geniro:debug`, `/geniro:refactor`, `/geniro:onboard`, `/geniro:investigate`, `/geniro:resolve`, `/geniro:audit-instructions` |
 | `.geniro/state/<skill>/state.md` | **Singleton** — no `<slug>/` subdir | **Singleton-lifecycle skills** — `/geniro:setup` |
 
 **Binary companion artifacts inside a task-dir.** `<task-dir>/visual-*.png` — the `/geniro:implement` before/after visual evidence pair, written by the browser tool rather than `atomic_state_write` (which produces text). No frontmatter, never validated. Durable, not scratch: the pair is the run's proof that a UI change works, and the user reads it after Ship.
 
-**Frontmatter-less companion artifact inside a T1.5 skill dir.** Two producers persist a dated companion file directly under their skill dir, outside any `<slug>/` subdir — no frontmatter, never passed through `validate_state_file`, written via `atomic_state_write`, and deliberately surviving cleanup because something downstream still reads it. Worktree routing differs: `/geniro:audit-instructions`' `.geniro/state/audit-instructions/report-<date>.md` is the next run's do-not-flag input for the SAME checkout, so it stays cwd-relative. `/geniro:review`'s optional brief at `.geniro/state/review/brief-<branch>-<date>.md` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md`) resolves its `.geniro/` root via `lib/repo-root.sh::_geniro_repo_root` and routes to the primary worktree like the T2 handoff it accompanies, so it survives the same worktree removal. Both are documented layouts, which keeps them out of the "No ad-hoc state files under `.geniro/state/`" prohibition below.
+**Frontmatter-less companion artifacts.** Three producers persist a dated or topic-named companion file — no frontmatter, never passed through `validate_state_file`, written via `atomic_state_write`, and deliberately surviving cleanup because something downstream still reads it. `/geniro:audit-instructions`' `.geniro/state/audit-instructions/report-<date>.md` is the next run's do-not-flag input for the SAME checkout, so it stays cwd-relative. `/geniro:review`'s optional brief (`<unit>/review-brief-<YYYY-MM-DD>.md`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md`) and `/geniro:investigate`'s saved answer (`<unit>/investigate-<topic-slug>.md`) sit in the unit dir beside the handoffs. All three are documented layouts, which keeps them out of the "No ad-hoc state files under `.geniro/state/`" prohibition below.
 
 **Only the `planning/<task-dir>/` layout survives Ship.** The other two T1.5 layouts are deleted at their owning skill's terminal exit (§Who cleans what, and when): they describe a run that is over, and a stale setup copy makes the next invocation resolve to `re-run` against a finished run. The setup singleton lives under the primary worktree (`<PRIMARY_ROOT>/.geniro/state/setup/state.md`).
 
 ### T2
 
-- `.geniro/state/handoff/from-<producer>-<branch>.md`
+- `<PLANNING_ROOT>/<unit>/review.md`, `debug.md`, `debug-adversarial.md`
 
 ### T3
 
@@ -93,7 +97,7 @@ These files carry no frontmatter and never pass through `validate_state_file`; c
 
 ### No ad-hoc state files under `.geniro/state/`
 
-Every file under `.geniro/state/` conforms to one of the canonical layouts above: `state/<skill>/<slug>/state.md`, the `state/setup/state.md` singleton, or `state/handoff/from-<producer>-<branch>.md`. A free-form file dropped directly under `.geniro/state/` — an ad-hoc working note such as `ci-201-verification-tracker.md`, carrying no frontmatter — is invisible to `validate_state_file`, to the SessionStart restore hook, and to the terminal-exit cleanup contract, so it neither resumes nor gets cleaned. Route a working note like that to `.geniro/planning/<task-dir>/` (the scratch tier) instead, where the cleanup contract reaches it.
+Every file under `.geniro/state/` conforms to one of the canonical layouts above: `state/<skill>/<slug>/state.md`, the `state/setup/state.md` singleton, or the audit-instructions report. A free-form file dropped directly under `.geniro/state/` — an ad-hoc working note such as `ci-201-verification-tracker.md`, carrying no frontmatter — is invisible to `validate_state_file`, to the SessionStart restore hook, and to the terminal-exit cleanup contract, so it neither resumes nor gets cleaned. Route a working note like that to `<PLANNING_ROOT>/<task-dir>/` (the scratch tier) instead, where the cleanup contract reaches it.
 
 Resolve the `.geniro/` root via `lib/repo-root.sh::_geniro_repo_root` — never manufacture a second `.geniro/` root inside a linked worktree: a split root fragments the file set the restore hook can discover, so a task started under one root cannot resume against the other.
 
@@ -297,7 +301,7 @@ original_repro: test "$(node scripts/profile.js 42)" = ok   # optional, scientif
 - Initialize `authored_tests: []` in the handoff frontmatter even when no test was authored (e.g., scientific path B "accept as documented limitation" or adversarial zero-red-tests terminal). The empty-array form lets consumers distinguish "no tests by design" from "field absent in legacy handoff" — the array-shaped case of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel.
 - One entry per authored test file. If a single test file holds multiple test cases, one entry covers it; the `intent` field summarizes the file-level guarantee.
 - `path` is repo-root relative. Consumers re-resolve against their own `git rev-parse --show-toplevel` to handle cross-worktree consumption.
-- `mode` matches the handoff's top-level `mode:` discriminator (`scientific` for `from-debug-<branch>.md`, `adversarial` for `from-debug-adversarial-<branch>.md`).
+- `mode` matches the handoff's top-level `mode:` discriminator (`scientific` for `debug.md`, `adversarial` for `debug-adversarial.md`).
 - `original_repro` is optional and top-level, not per test: the un-minimised reproduction command as first run, before debug minimised it. It is self-contained — it must run on its own after debug deletes its scratch files and kills the dev server it started — and exits non-zero while the bug reproduces and zero once fixed (an expected-vs-actual output comparison is turned into that exit code); it is omitted when no such command can be formed. Debug writes the whole handoff through `redact_secrets`, so the command reads credentials from environment variables.
 - Scientific mode `f_to_p_status: escape-hatch` paired with an `intent: "escape-hatch: <rationale>"` is valid — surfaces the §2.4 hard-to-mock chain case where the bug cannot be verified without temporary production edits (which are reverted before escalation).
 
@@ -363,7 +367,7 @@ non-resumable-actions: []
 
 The session-bound (`/geniro:debug` etc.) and singleton (`/geniro:setup`) layouts use the identical required-field set; they differ only in `producer:` and optional producer-specific extensions (e.g. `geniro_kind: debug-state`, `mode: init`).
 
-### T2 — handoff
+### T2 — handoff (`<PLANNING_ROOT>/ci-277/review.md`)
 
 ```yaml
 ---

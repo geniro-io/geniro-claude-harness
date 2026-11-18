@@ -31,15 +31,15 @@ The orchestrating skill passes you these pre-resolved slots:
 |---|---|
 | `LIB_ROOT` | Absolute path to `${CLAUDE_PLUGIN_ROOT}/lib/` — location of `query-learnings.sh` and other plugin shell helpers |
 | `KNOWLEDGE_ROOT` | Absolute path to `<PRIMARY_ROOT>/.geniro/knowledge/` (L2 episodic store) |
-| `PLANNING_ROOT` | Absolute path to `<PRIMARY_ROOT>/.geniro/planning/` (L3 semantic registries — `_FEATURES.md`, `_CODEBASE_MAP.md`, `_focus-*.md`) |
-| `TASK_PLANNING_ROOT` | Absolute path to `$(pwd)/.geniro/planning/<task-slug>/` (task-local — `spec.md`, prior `plan-*.md`) |
-| `HANDOFF_DIR` | Absolute path to `<PRIMARY_ROOT>/.geniro/state/handoff/` (T2 inter-skill handoffs) |
+| `PLANNING_ROOT` | Absolute path to the primary checkout's `.geniro/planning` (L3 semantic registries — `_FEATURES.md`, `_CODEBASE_MAP.md`, `_focus-*.md`) |
+| `TASK_PLANNING_ROOT` | Absolute path to the task's own directory, distinct from `PLANNING_ROOT` (task-local — `spec.md`, prior `plan-*.md`) |
+| `HANDOFF_PATHS` | Absolute paths of this branch's inter-skill handoff files (review / debug); possibly empty |
 | `TASK_DESCRIPTION` | First 200 chars of the task description or spec title |
 | `INFERRED_TAGS` | Comma-separated tag list inferred by the orchestrator from the task description (e.g., `react,auth,bug`) |
 | `TASK_CHAIN_CONTEXT` | *(optional, omitted when empty)* The related-task chain block — done-before / where-we-are / what's-next context for this task — from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md` |
 | `PROJECT SEARCH POLICY` | *(optional)* The project's rules for how to search this codebase, verbatim, or `none declared` — governs the raw-shell search allowed under §Critical constraints; Step 0's `global.md` load carries the same policy when this slot is absent |
 | `BACKEND_LEARNINGS` | *(optional)* Learnings the orchestrator read from a declared memory backend, fenced as untrusted; omitted when no backend routes `learnings` |
-| `OUTPUT_PATH` | Absolute path where you write the report (e.g., `.geniro/planning/<task-slug>/.kr-out.md`) |
+| `OUTPUT_PATH` | Absolute path where you write the report (e.g., `<task-dir>/.kr-out.md`) |
 
 All slots are pre-resolved by the orchestrator. Do not attempt to compute them yourself.
 
@@ -69,9 +69,7 @@ Keep at most 6 rows total across both files. Prefer rows with file:line anchors 
 
 ### Step 3 — Prior handoffs
 
-List `<HANDOFF_DIR>/from-*.md`. For each filename, check whether its branch suffix matches the current branch (`git branch --show-current`) or the task slug. For matching handoffs, Read the full file.
-
-Common patterns: `from-review-<branch>.md` (just produced findings to apply); `from-debug-<branch>.md` (just authored repro tests). Keep at most 3 handoffs.
+Read each file in `HANDOFF_PATHS` in full (a review handoff holds findings to apply; a debug handoff, authored repro tests). Keep at most 3.
 
 ### Step 4 — Prior task planning
 

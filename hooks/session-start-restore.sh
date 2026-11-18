@@ -161,6 +161,25 @@ if ! command -v _geniro_branch_slug >/dev/null 2>&1; then
   }
 fi
 
+# Planning root (where /geniro:plan and /geniro:implement create task dirs) and
+# the branch's unit dir, single-sourced in lib/unit-dir.sh. Without lib/ the
+# hook falls back to the primary checkout's planning dir.
+_geniro_unit_helper="${CLAUDE_PLUGIN_ROOT:-$_GENIRO_PLUGIN_ROOT_FALLBACK}/lib/unit-dir.sh"
+if [ -f "$_geniro_unit_helper" ]; then
+  # shellcheck source=/dev/null
+  source "$_geniro_unit_helper" 2>/dev/null || true
+fi
+if ! command -v _geniro_planning_root >/dev/null 2>&1; then
+  _geniro_planning_root() { printf '%s' "$GENIRO_ROOT/.geniro/planning"; }
+  _geniro_unit_dir() { printf '%s/%s' "$(_geniro_planning_root)" "$(_geniro_branch_slug "${1:-}")"; }
+fi
+PLANNING_ROOT="$(_geniro_planning_root)"
+# Legacy fallback: task dirs created under the cwd's own .geniro/planning inside a linked worktree.
+LEGACY_PLANNING="$PWD/.geniro/planning"
+if [ -d "$LEGACY_PLANNING" ] && [ "$(cd "$LEGACY_PLANNING" && pwd -P)" = "$(cd "$PLANNING_ROOT" 2>/dev/null && pwd -P)" ]; then
+  LEGACY_PLANNING=""
+fi
+
 # Find the nearest .geniro/safety.json walking up from cwd. Mirrors
 # block-geniro-force-add.sh so the auto-archive opt-out is honored regardless
 # of cwd depth (a single cwd-relative check misses the opt-out from any
@@ -283,9 +302,22 @@ task_dir=""
 
 # Tier 1a — layout A (task-dir = slug). Terminal candidates are skipped so a
 # finished task here cannot shadow an in-flight Tier 1b/2 candidate.
-if [ -n "$slug" ] && [ -f "./.geniro/planning/$slug/state.md" ] \
-   && ! _is_terminal_candidate "./.geniro/planning/$slug/state.md"; then
-  state_file="./.geniro/planning/$slug/state.md"
+if [ -n "$slug" ]; then
+  for _cand in "$(_geniro_unit_dir)/state.md" "$PLANNING_ROOT/$slug/state.md" \
+               ${LEGACY_PLANNING:+"$LEGACY_PLANNING/$slug/state.md"}; do
+    if [ -f "$_cand" ] && ! _is_terminal_candidate "$_cand"; then
+      # A state.md bound by frontmatter (not by slug) that records another
+      # worktree belongs to that worktree's run; Tier 2 applies the gate.
+      _cand_wt=""
+      [ "$_cand" != "$PLANNING_ROOT/$slug/state.md" ] && [ "$_cand" != "${LEGACY_PLANNING:-/nonexistent}/$slug/state.md" ] \
+        && _cand_wt="$(_fm_scalar_quick "$_cand" worktree)"
+      if [ -n "$_cand_wt" ] && [ "$(cd "$_cand_wt" 2>/dev/null && pwd -P)" != "$(git rev-parse --show-toplevel 2>/dev/null | { read -r _t && cd "$_t" 2>/dev/null && pwd -P; })" ]; then
+        continue
+      fi
+      state_file="$_cand"
+      break
+    fi
+  done
 fi
 
 # Tier 1b — layout B (session-bound skills)
@@ -327,7 +359,8 @@ fi
 # placeholder. Set GENIRO_RESUME_STALE_DAYS=0 to disable the gate (always resume).
 _state_candidates() {
   {
-    find ./.geniro/planning -maxdepth 2 -name 'state.md' -type f 2>/dev/null
+    find "$PLANNING_ROOT" -maxdepth 2 -name 'state.md' -type f 2>/dev/null
+    [ -n "$LEGACY_PLANNING" ] && find "$LEGACY_PLANNING" -maxdepth 2 -name 'state.md' -type f 2>/dev/null
     find ./.geniro/state -maxdepth 3 -name 'state.md' -type f 2>/dev/null
     if [ "$GENIRO_ROOT" != "." ] && [ "$GENIRO_ROOT" != "$PWD" ]; then
       find "$GENIRO_ROOT/.geniro/state" -maxdepth 3 -name 'state.md' -type f 2>/dev/null

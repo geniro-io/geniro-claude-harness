@@ -26,7 +26,7 @@ Satisfy the checklist on every spawn.
 
 The plugin's `codebase-research-agent` (`${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md`) is the default for codebase research that would otherwise flood the orchestrator's context — mapping subsystems, tracing flows, locating definitions, summarizing behavior. It runs at the cost class the calling site names — **session** unless the site names a light class — where the built-in `Explore` subagent is pinned to a small model regardless, and as a plugin-defined custom agent it sidesteps [anthropics/claude-code#38928](https://github.com/anthropics/claude-code/issues/38928) (MCP-overflow → `0 tool uses` on hosts with many MCP servers).
 
-Call via the runtime-degradation ladder at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (`geniro:codebase-research-agent` under Claude Code → bare `codebase-research-agent` where the host lists it → general-purpose reading the agent file) at the class the calling site names: **session** (pass no `model=`) by default, **light (smallest)** or **light (mid)** where the site names one, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes. Pre-inline the slots from the agent's Input Contract — always passed: `RESEARCH_QUESTION` / `DELIVERABLE_SHAPE` / `PROJECT SEARCH POLICY` / `OUTPUT_PATH`; passed when they apply: `SCOPE_HINT` / `PRE_INLINED_CONTEXT` / `THOROUGHNESS` / `RETURN`. `PROJECT SEARCH POLICY` is always passed though the agent marks it `recommended`; the agent self-loads `global.md` when it is absent. `OUTPUT_PATH` convention: `.geniro/planning/<task-slug>/.research-out.md` (default) OR `.geniro/planning/<task-slug>/.research-<facet>.md` (when running multiple facets in parallel — `/geniro:plan` Phase 1 pattern). See `${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` for the full contract and worked `DELIVERABLE_SHAPE` examples.
+Call via the runtime-degradation ladder at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (`geniro:codebase-research-agent` under Claude Code → bare `codebase-research-agent` where the host lists it → general-purpose reading the agent file) at the class the calling site names: **session** (pass no `model=`) by default, **light (smallest)** or **light (mid)** where the site names one, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes. Pre-inline the slots from the agent's Input Contract — always passed: `RESEARCH_QUESTION` / `DELIVERABLE_SHAPE` / `PROJECT SEARCH POLICY` / `OUTPUT_PATH`; passed when they apply: `SCOPE_HINT` / `PRE_INLINED_CONTEXT` / `THOROUGHNESS` / `RETURN`. `PROJECT SEARCH POLICY` is always passed though the agent marks it `recommended`; the agent self-loads `global.md` when it is absent. `OUTPUT_PATH` convention: `<task-dir>/.research-out.md` (default) OR `<task-dir>/.research-<facet>.md` (when running multiple facets in parallel — `/geniro:plan` Phase 1 pattern). See `${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` for the full contract and worked `DELIVERABLE_SHAPE` examples.
 
 Concrete call shape (step 1 of the spawn-agent ladder; substitute slot values):
 
@@ -48,7 +48,7 @@ SCOPE_HINT: <path globs or module names; omit when scanning whole repo>
 PRE_INLINED_CONTEXT:
 <file excerpts the orchestrator already read; omit if none>
 
-OUTPUT_PATH: <absolute path under .geniro/planning/<task-slug>/.research-out.md>
+OUTPUT_PATH: <absolute path: <task-dir>/.research-out.md>
 
 THOROUGHNESS: <quick | medium | very thorough; default medium>
 

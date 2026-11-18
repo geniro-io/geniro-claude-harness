@@ -40,10 +40,10 @@
 
 | Tier / path | Routing |
 |---|---|
-| T1.5 task-bound durable artifacts (`.geniro/planning/<task-dir>/{state,spec}.md`, `plan-*.md`, `milestone-*.md`) | Helpers above |
+| T1.5 task-bound durable artifacts (`<PLANNING_ROOT>/<task-dir>/{state,spec}.md`, `plan-*.md`, `milestone-*.md`) | Helpers above |
 | T1.5 session-bound state (`.geniro/state/<skill>/<slug>/state.md`) | Helpers above |
 | T1.5 singleton state (`.geniro/state/setup/state.md`) | Helpers above |
-| T2 handoff (`.geniro/state/handoff/from-*.md`) | Helpers above |
+| T2 handoff (`<PLANNING_ROOT>/<unit>/{review,debug,debug-adversarial}.md`) | Helpers above |
 | T3 CRUD (`instructions/*.md`, `actions/*.md`, `workflow/*.md`, `planning/_*.md`) | Helpers above, plus the caller-side mtime check below |
 | T3 append-only JSONL (`.geniro/knowledge/learnings.jsonl`) | `atomic_state_append` only — except a locked whole-file rewrite that mutates an existing line (e.g. flipping `deprecated: true` on prune/archive), which is program-produced content and routes through `atomic_state_write_cmd` under the shared knowledge-rewrite lock |
 | T1 ephemeral transient outputs (canonical list: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T1 — e.g. `.kr-out.md`, `.research-*.md`, `notes.md`) | Plain `Write` — no frontmatter, no atomicity requirement, deleted at the owning run's terminal exit |
@@ -124,7 +124,7 @@ Replaces one **literal** occurrence of `<old_text>` and commits the result throu
 `<old_text>` must match exactly once. Zero matches and more than one are both errors that change nothing — the helper never guesses which occurrence was meant.
 
 ```bash
-atomic_state_edit ".geniro/state/handoff/from-review-main.md" \
+atomic_state_edit ".geniro/planning/main/review.md" \
   "- [ ] Null deref in parseConfig" \
   "- [x] Null deref in parseConfig"
 ```

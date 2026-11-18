@@ -59,9 +59,9 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 |---|---|
 | "I already know the answer from reading the code" | You read one perspective. Parallel agents catch what you missed — git history reveals intent, internet reveals context. |
 | "I'll spawn all 3 (or add an agent the classification excluded) to be safe" | The Phase 1 classification table is the literal spawn set; irrelevant agents cost tokens and make the synthesizer filter off-target noise. If the criteria look wrong, revise the classification. |
-| "The agents converge", "the reasoning chain is tight", or "I'll ship it with a low-confidence caveat" | Convergent self-reports are still self-reports, reasoning is hypothesis, and a claim shipped under a caveat still reads as an answer the reader acts on. Only an artifact kind clears the Evidence Standard, through the Phase 2 Step 2 re-verify or the Step 3 missing-data gate. |
+| "The agents converge", "the reasoning chain is tight", or "I'll ship it with a low-confidence caveat" | Convergent self-reports are still self-reports, reasoning is hypothesis, and a caveated claim still reads as an answer the reader acts on. Only an artifact kind clears the Evidence Standard, through the Phase 2 Step 2 re-verify or the Step 3 missing-data gate. |
 | "How-can-we / Compare / What-if questions are forward-looking, they don't need code-level verification" | "How can we connect X to Y" must cite the actual schema, API, or integration points; "what would break" must cite the actual call sites. Every question type needs an evidence-backed answer. |
-| "The answer touched architecture — I'll write it up as an ADR or a project rule before closing." | /geniro:investigate answers questions; it writes no rule, ADR, or CLAUDE.md section. Its durable output is the Step 5 learning. A user who wants the answer promoted runs `/geniro:reflect`, where it faces the full worth bar. |
+| "The answer touched architecture — I'll write it up as an ADR or a project rule before closing." | /geniro:investigate answers questions; it writes no rule, ADR, or CLAUDE.md section. Its durable output is the saved answer and the Step 5 learning. A user who wants the answer promoted runs `/geniro:reflect`, where it faces the full worth bar. |
 | "Self-review, the glossary check, or the JIT cadence log is overhead for a question" | Each is a Definition-of-done gate: skipping one lets claims drift from evidence, or spends 2-3 spawns on the wrong vocabulary. |
 
 ## Quality-first budgets
@@ -91,7 +91,7 @@ Follow every claim back to the source that owns it. For a claim about this repo,
 
 ## ACI per-phase tool surface
 
-Every phase leaves production source as it found it, under any workflow wrapper or elevated-effort mode (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §1): read-only `git log` / `diff` / `blame` / `show` (plus the Phase 1 scratchpad clone), no `git add`, `commit`, `push`, or `checkout`, and no edits. Writes go only to this run's state directory through the state helpers, plus a loaded `After worktree-setup` step. Each spawned agent's read-only whitelist is set in its spawn template; the Phase 3 fresh verifier reads and greps only.
+Every phase leaves production source as it found it, under any workflow wrapper or elevated-effort mode (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §1): read-only `git log` / `diff` / `blame` / `show` (plus the Phase 1 scratchpad clone), no `git add`, `commit`, `push`, or `checkout`, and no edits. Writes go only to this run's state directory and the saved answer in the unit dir, through the state helpers, plus a loaded `After worktree-setup` step. Each spawned agent's read-only whitelist is set in its spawn template; the Phase 3 fresh verifier reads and greps only.
 
 ## Memory I/O
 

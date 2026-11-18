@@ -52,8 +52,8 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` only when the run i
 After mode is resolved (IDEA or DESIGN_DOC):
 
 1. **Resolve task slug.** Inputs: $ARGUMENTS topic OR basename(design-doc) sans extension. Output: kebab-case slug ≤40 chars.
-2. **Task-dir:** `.geniro/planning/<task-slug>/`.
-3. **state.md:** `.geniro/planning/<task-slug>/state.md`, written via `atomic_state_write` from the frontmatter and body template in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1. In artifact mode (`--artifact` or a §0.2.5 Yes) write `artifact_mode: true`, `artifact_status: pending` and an empty `artifact_url: ""` together — `atomic_state_set_field` only replaces an existing key, so without the placeholder the first publish's URL write fails; omit all three otherwise. That write carries each held pick as an `approvals[]` entry.
+2. **Task-dir:** `<PLANNING_ROOT>/<task-slug>/` (`<task-dir>`), `<PLANNING_ROOT>` from `_geniro_planning_root` in `${CLAUDE_PLUGIN_ROOT}/lib/unit-dir.sh`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Path roots.
+3. **state.md:** `<task-dir>/state.md`, written via `atomic_state_write` from the template in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1. In artifact mode (`--artifact` or §0.2.5 Yes) write `artifact_mode: true`, `artifact_status: pending` and an empty `artifact_url: ""` together — `atomic_state_set_field` only replaces an existing key, so the first publish's URL write fails without the placeholder; omit all three otherwise. That write carries each held pick as `approvals[]` entries.
 4. **Transition.** Set `phase: explore` via `atomic_state_set_field` and proceed to Phase 1.
 
 ### 0.4 Cancel handling

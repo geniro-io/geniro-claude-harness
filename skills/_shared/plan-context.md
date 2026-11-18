@@ -21,7 +21,7 @@ The orchestrator collects PLAN CONTEXT from up to five sources (item 6 is the em
 
 1. **`--plan <path>` flag** (`$ARGUMENTS`) — explicit path to a spec.md / plan.md / design-doc file. Highest priority. Example: `review HEAD~5..HEAD --plan .geniro/planning/feat-auth/spec.md`.
 2. **PR body plan-reference** — when in PR mode, scan the PR body for a `geniro-plan: <path>` line (a manual convention — a user adds this line to the PR body to point /review at the on-disk spec.md; no skill writes it automatically). If found, treat as a pointer to the on-disk spec.md.
-3. **Auto-discovered spec.md** — walk `.geniro/planning/*/spec.md`. First match wins (most-recently-modified preferred).
+3. **Auto-discovered spec.md** — walk `<PLANNING_ROOT>/*/spec.md` (`_geniro_planning_root`). First match wins (most-recently-modified preferred).
 4. **Auto-discovered project files** — `docs/spec.md`, `docs/plan.md`, `PLAN.md`, `SPEC.md`. Skipped silently if absent.
 5. **PR body as opaque prose** — when PR mode but no `geniro-plan:` reference found, fall back to `gh pr view <ref> --json body` content treated as prose.
 6. **None** — no PR body, no `--plan`, no project files. PLAN CONTEXT renders as the literal string `none` in every reviewer prompt.
