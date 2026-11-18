@@ -39,6 +39,21 @@ if [ -z "${_VPS_DEPS_LOADED:-}" ]; then
   _VPS_DEPS_LOADED=1
 fi
 
+if [ -z "${_VPS_ROOT_LOADED:-}" ]; then
+  # Cross-shell self-location (see emit-learning.sh): BASH_SOURCE is bash-only.
+  if [ -n "${BASH_SOURCE:-}" ]; then
+    _vps_self="${BASH_SOURCE[0]}"
+  elif [ -n "${ZSH_VERSION:-}" ]; then
+    eval '_vps_self="${(%):-%x}"'
+  else
+    _vps_self="$0"
+  fi
+  _vps_script_dir="$(cd "$(dirname "$_vps_self")" && pwd)"
+  # shellcheck disable=SC1091
+  source "$_vps_script_dir/repo-root.sh"
+  _VPS_ROOT_LOADED=1
+fi
+
 _VPS_FAILED=0
 _VPS_TAB="$(printf '\t')"
 
@@ -185,23 +200,6 @@ _vps_fm_list_state() {
     }
     END { if (!done) { if (!seen) print "absent"; else print "empty" } }
   '
-}
-
-# Primary worktree root, mirroring skills/_shared/primary-worktree.md Mode A.
-_vps_primary_root() {
-  local toplevel primary
-  toplevel="$(git rev-parse --show-toplevel 2>/dev/null)"
-  primary="$(git worktree list --porcelain 2>/dev/null | awk '
-    /^worktree / { path = $0; sub(/^worktree /, "", path) }
-    /^bare$/     { path = "" }
-    /^$/         { if (path != "") { seen = 1; print path; exit } }
-    END          { if (!seen && path != "") print path }
-  ')"
-  if [ -z "$toplevel" ] || [ -z "$primary" ] || [ "$toplevel" = "$primary" ]; then
-    printf '%s' "."
-  else
-    printf '%s' "$primary"
-  fi
 }
 
 # --- result emission --------------------------------------------------------
@@ -666,8 +664,7 @@ VPS_PARSED
 
   while IFS= read -r kind; do
     [ -n "$kind" ] || continue
-    [ -f "./.geniro/workflow/$kind.md" ] && continue
-    [ -n "$primary" ] || primary="$(_vps_primary_root)"
+    [ -n "$primary" ] || primary="$(_geniro_repo_root)"
     [ -f "$primary/.geniro/workflow/$kind.md" ] && continue
     case "$missing_files" in *" $kind "*) continue ;; esac
     missing_files="$missing_files $kind "
@@ -676,7 +673,7 @@ $kinds
 VPS_KINDS
 
   if [ -n "$missing_files" ]; then
-    _vps_emit workflow_refs_consistency warn "workflow_refs[] references kind(s)${missing_files}but no matching .geniro/workflow/<kind>.md exists in cwd or the primary worktree — downstream skills will skip workflow on-task-start hooks for them." \
+    _vps_emit workflow_refs_consistency warn "workflow_refs[] references kind(s)${missing_files}but no matching .geniro/workflow/<kind>.md exists in the main checkout — downstream skills will skip workflow on-task-start hooks for them." \
       "Create the workflow file (copy an existing one as a template), or remove the workflow_refs entry from the spec frontmatter."
     return
   fi

@@ -20,7 +20,7 @@ On Phase 2 entry, apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instru
 
 If the confirmed root cause has more than one valid fix path with real trade-offs (e.g., snapshot-vs-live-fetch, COALESCE vs CHECK constraint vs catch+log, fix-at-source vs fix-at-call-site), do NOT pick one and write a single text proposal.
 
-**Render the investigation context to chat first, then fire the lean `AskQuestion` (header `"Fix path"`, one option per fix path with a one-line trade-off) — both per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Investigation-driven fix gate (debug-flavored)**. That section carries the full render template (title, opener, root-cause digest, cause → effect flow visual, reproduction status, options) and its source-field map into `.geniro/state/debug/<slug>/state.md`.
+**Render the investigation context to chat first, then fire the lean `AskQuestion` (header `"Fix path"`, one option per fix path with a one-line trade-off) — both per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Investigation-driven fix gate (debug-flavored)**. That section carries the full render template (title, opener, root-cause digest, cause → effect flow visual, reproduction status, options) and its source-field map into `<STATE_DIR>/state.md`.
 
 **Approvals-persistence:** before firing, check state.md frontmatter `approvals[]` for prior entry with `category: multi_path_fix` and matching `root_cause` (use root-cause text as the disambiguator). If found, use prior `picked` value. If not, fire AUQ → on user pick, append entry to `approvals[]` via `atomic_state_append_list_item`.
 
@@ -29,7 +29,7 @@ If the confirmed root cause has more than one valid fix path with real trade-off
 ### 2.3 Text fix proposal
 
 - Formulate the minimal fix for the root cause as a **text proposal**: file path(s), exact change (unified diff or before/after snippet), one-sentence rationale.
-- Do NOT write the fix to production/source files. Writes and edits are available for EXPERIMENTS only (tests, logging, debug scripts, `.geniro/state/debug/<slug>/` artifacts) — not for applying the proposed patch.
+- Do NOT write the fix to production/source files. Writes and edits are available for EXPERIMENTS only (tests, logging, debug scripts, `<STATE_DIR>` artifacts) — not for applying the proposed patch.
 - If any experiment modified non-test source, revert those edits before escalation; the escalated skill applies the real fix cleanly.
 - Do NOT refactor adjacent code.
 

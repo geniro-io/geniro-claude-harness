@@ -5,7 +5,7 @@
 - §When to invoke — the last step before the parallel reviewer batch
 - §Inputs from the consumer skill — CHANGED_FILES / PRIMARY_ROOT slots
 - §What this helper produces — the spawn-spec schema
-- §Discovery procedure — Steps 1-7 (resolve root → glob → parse → validate → path-filter → cap → build specs)
+- §Discovery procedure — Steps 1-6 (resolve root and glob → parse → validate → path-filter → cap → build specs)
 - §Hydrating requires-context — orchestrator pre-fetch of declared external data
 - §How consumers use the spawn-specs — the spawn call template
 - §Large-diff behavior — `/geniro:review` one-spawn-per-dimension rule
@@ -22,7 +22,7 @@ Invoke this helper as the LAST step BEFORE the parallel reviewer batch — after
 The helper has no formal parameter list — it runs in the orchestrator's context and reads what's already there. The consumer skill has these two slots in scope before invoking the helper — the helper reads what is already there rather than taking parameters:
 
 - **`CHANGED_FILES`** — a list of file paths the consumer skill pre-built for the parallel batch (the same list the built-in reviewers receive in their `CHANGED FILES:` slot). Used by Step 5's `paths:` filter.
-- **`PRIMARY_ROOT`** — the primary worktree root, computed at this helper-invocation site (never relied on from a prior phase) via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the Mode A snippet sets a Bash shell variable, and Bash environments are reset across compaction and across phase boundaries that re-launch Bash. Used by Step 1's local + main-worktree glob.
+- **`PRIMARY_ROOT`** — the primary worktree root, computed at this helper-invocation site (never relied on from a prior phase) via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the Mode A snippet sets a Bash shell variable, and Bash environments are reset across compaction and across phase boundaries that re-launch Bash. Used by Step 1's glob.
 
 If either slot is missing, the helper aborts (treat as a contract bug in the consumer skill, not a user error).
 
@@ -42,28 +42,22 @@ The consumer skill takes this list and, for each spec, appends one spawn to its 
 
 ## Discovery procedure
 
-### Step 1: Resolve the search root
+### Step 1: Resolve the search root and glob
 
 Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A to compute `PRIMARY_ROOT`. Custom reviewer files live under `.geniro/instructions/review-extra/` — this is cross-session-durable storage that mirrors the `.geniro/actions/` convention so user-authored review-extra files survive `git worktree remove` on linked worktrees.
 
-Walk the actions-skill convention exactly: when running in a linked worktree, glob BOTH `./.geniro/instructions/review-extra/*.md` (local) and `<PRIMARY_ROOT>/.geniro/instructions/review-extra/*.md` (main). When the same slug appears in both, **local wins** — drop the main-worktree entry from the candidate list. Uncommitted local edits take precedence over the committed primary-worktree version.
+Glob `<PRIMARY_ROOT>/.geniro/instructions/review-extra/*.md` — the main checkout is the only source, whichever worktree the run is in. If the directory does not exist OR the glob returns zero files, the helper exits immediately with an empty spawn-spec list — this is the normal case for projects that have no custom reviewers.
 
-If `git` is unavailable or the project has only one worktree, the registry is just `local`.
+### Step 2: Read and parse each file
 
-### Step 2: Glob the directory
-
-Match the pattern `.geniro/instructions/review-extra/*.md` (and the primary-worktree variant per Step 1). If the directory does not exist OR the glob returns zero files after the Step 1 dedup, the helper exits immediately with an empty spawn-spec list — this is the normal case for projects that have no custom reviewers.
-
-### Step 3: Read and parse each file
-
-For each glob match (after Step 1 dedup):
+For each glob match (from Step 1):
 
 1. Read the file fully.
-2. Parse the YAML frontmatter — the block bounded by a leading `---\n` line and a trailing `\n---\n` line. If either delimiter is missing, treat the file as malformed and skip it with a one-line warning per Step 4.
+2. Parse the YAML frontmatter — the block bounded by a leading `---\n` line and a trailing `\n---\n` line. If either delimiter is missing, treat the file as malformed and skip it with a one-line warning per Step 3.
 3. Extract the body — everything after the closing `---\n` of the frontmatter.
-4. Validate the parsed result per Step 4.
+4. Validate the parsed result per Step 3.
 
-### Step 4: Validate each file
+### Step 3: Validate each file
 
 A file is INVALID (skip it with a one-line warning, do NOT abort the helper) if ANY of these hold:
 
@@ -80,21 +74,21 @@ A file is INVALID (skip it with a one-line warning, do NOT abort the helper) if 
 
 For each invalid file, print one diagnostic line: `Skipped custom reviewer <path>: <reason>`. Continue processing the rest. One bad file does NOT kill the whole review.
 
-### Step 5: Apply `paths:` filter
+### Step 4: Apply `paths:` filter
 
 For each VALID file:
 
 - If `paths:` is absent OR is the empty list, the reviewer fires on every run; carry it forward.
 - If `paths:` is set, build the union of changed-file paths from `CHANGED_FILES` (the same list the built-in reviewers receive). The reviewer fires only if at least one changed file matches at least one of the globs in `paths:`. Use Git-style fnmatch / bash-globstar semantics — matches the conventions used by `.gitignore` and `.claude/rules/<scope>.md` `paths:` frontmatter. Silently drop the reviewer when no changed file matches — this is by design, not an error.
 
-### Step 6: Enforce caps
+### Step 5: Enforce caps
 
-After Step 5 filtering, count the surviving reviewers:
+After Step 4 filtering, count the surviving reviewers:
 
 - If count > 10, abort the helper with a hard error. Print: `Too many custom reviewers — <N> are active after the paths: filter, and the limit is 10. Delete or scope down some files in .geniro/instructions/review-extra/`. The consumer skill propagates this as a fatal error to the user; continuing past the cap spawns a batch whose cost the run never agreed to.
 - If count > 6, print a soft warning: `<N> custom reviewers are active on top of the built-in dimensions — past about 6 custom ones the extra per-run cost outpaces the coverage they add; consider scoping some with paths: globs so each fires only on the diffs it applies to.` Continue. Both numbers on this step — the soft-warn band at 6 and the hard cap at 10 — count CUSTOM reviewers only, never the built-in dimensions, which always fire on top of them. This step is the canonical home for both; other files cite it rather than restating the figures.
 
-### Step 7: Build spawn-specs
+### Step 6: Build spawn-specs
 
 For each surviving (valid + path-filtered + within-cap) file, build the spawn-spec dict per the schema in §What this helper produces. Sort the list deterministically by slug (alphabetical) so spawn order is reproducible across runs.
 
@@ -104,7 +98,7 @@ Return the list to the consumer skill.
 
 MCP tool names are per-install, so the specific tool a custom reviewer would have to call for live external data (a Notion page, a Linear / Jira issue, an API response) is unknowable at the spawn site — the criteria file cannot name it and the spawn cannot pin it. The orchestrator resolves it against the tools actually registered in this install, fetches once, and injects the result into the one reviewer's prompt — the same hydrate-and-inject pattern `/geniro:review` already uses for `LINEAR CONTEXT:`, and the same reason every other pre-inlined slot is composed before the spawn rather than inside it.
 
-Run this once per spawn-spec whose `requires-context` is non-null, AFTER Step 7 builds the specs and BEFORE appending the spawns:
+Run this once per spawn-spec whose `requires-context` is non-null, AFTER Step 6 builds the specs and BEFORE appending the spawns:
 
 1. **Interpret the directive.** Read the natural-language `requires-context` string and pick the available tool that satisfies it (an MCP tool, a web fetch, etc.). The directive names the source and what to extract — e.g. "fetch the live Notion Incident Report, latest entry, and provide its incident-pattern list".
 2. **Fetch read-only.** Call the tool to retrieve only what the directive asks for. Never mutate external state — review is read-only, matching the Linear-fetch rule in `/geniro:review`.
@@ -158,10 +152,9 @@ Custom reviewers spawn once per review run — exactly like every built-in dimen
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll skip the Step 1 main-worktree dedup since this is a non-linked-worktree project" | You can't reliably tell at runtime — `git rev-parse --show-toplevel` vs `git worktree list --porcelain` is the only ground truth. The actions skill applies the same dedup unconditionally; the helper inherits that convention so user-authored review-extra files survive worktree teardown just like actions do. |
-| "I'll abort the helper on the first invalid file so the user notices" | Per Step 4, one bad file does not kill the rest. Aborting punishes users for typos — the warning is enough. The user sees the warning, fixes the file, re-runs. |
-| "I'll pre-read all criteria content into orchestrator context for a summary" / "built-ins pass a path now — pass `source-path` and drop `criteria-content`" | Reading them to summarize is what inflates context; reading them to fill one spawn slot each is the helper's job and it already happened at Step 3. Custom reviewers keep the content form on purpose: the file lives under the user's `.geniro/instructions/`, the helper has already parsed its frontmatter to build the spawn-spec, and a re-Read would only reach the same bytes. Built-in criteria pass as paths for the opposite reason — they are large, fixed, plugin-owned rubrics the orchestrator has no other need to open. Each spawned agent still sees only its own criteria either way. |
-| "I'll dedup main + local by union, not by 'local wins'" | Mirror the actions convention exactly: local wins. Uncommitted local edits exist for a reason — typically the user is iterating on a new reviewer. Union would re-introduce the stale committed version. |
+| "This worktree has its own review-extra copy — glob cwd too" | Reads share the one source writes land in, the main checkout. A worktree copy is invisible to other sessions and drifts from what `/geniro:instructions edit` changes. |
+| "I'll abort the helper on the first invalid file so the user notices" | Per Step 3, one bad file does not kill the rest. Aborting punishes users for typos — the warning is enough. The user sees the warning, fixes the file, re-runs. |
+| "I'll pre-read all criteria content into orchestrator context for a summary" / "built-ins pass a path now — pass `source-path` and drop `criteria-content`" | Reading them to summarize is what inflates context; reading them to fill one spawn slot each is the helper's job and it already happened at Step 2. Custom reviewers keep the content form on purpose: the file lives under the user's `.geniro/instructions/`, the helper has already parsed its frontmatter to build the spawn-spec, and a re-Read would only reach the same bytes. Built-in criteria pass as paths for the opposite reason — they are large, fixed, plugin-owned rubrics the orchestrator has no other need to open. Each spawned agent still sees only its own criteria either way. |
 | "Large diff — I'll spawn extra reviewer instances per file group for coverage." | No dimension fans out per file group — built-in or custom. One spawn per dimension; the file groups are a reading order inside that one spawn. Per-group fan-out multiplied a real run to 33+ spawns with no accuracy gain — concern-parallel, never chunk-parallel. |
 | "If `paths:` is set and matches nothing, I'll fire anyway just to be safe" | If the user scoped a reviewer to `**/*.sql` and the diff has no SQL files, firing it wastes a reviewer call and produces zero findings. Silently drop — the `paths:` field IS the user's opt-out for unrelated diffs. |
 | "I'll cache the spawn-specs across consumer-skill invocations within the session" | Don't. The changed-files list differs per invocation, so the `paths:` filter result differs too. Re-run the helper on every consumer-skill invocation. The cost is one Glob + N small Reads — cheap relative to the parallel reviewer batch itself. |

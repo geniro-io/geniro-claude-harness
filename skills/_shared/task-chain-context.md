@@ -38,7 +38,7 @@ During research, assemble the full chain of related work — the current tracker
 
 Resolve the related tracker chain for the primary ref. Read-only — never create, update, or comment on any tracker item. Depth-1 only per §8 Cost bound: the parent epic and the epic's direct children.
 
-Driven by the matching `.geniro/workflow/<kind>.md` contract — read that file for the project's MCP tool names and query shape; never hardcode a tracker API. Resolve the workflow file cwd-first, primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A.
+Driven by the matching `.geniro/workflow/<kind>.md` contract — read that file for the project's MCP tool names and query shape; never hardcode a tracker API. Read the workflow file from `<PRIMARY_ROOT>/.geniro/workflow/` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A.
 
 Procedure:
 
@@ -123,7 +123,7 @@ The milestone half (Half B) is never persisted — it is re-derived from disk on
 |---|---|
 | `WORKFLOW_REFS` empty / no parent | Half A = "none" |
 | MCP unregistered / fetch timeout | Half A = "none" |
-| Workflow file absent in cwd + primary | Half A = "none" |
+| Workflow file absent under `<PRIMARY_ROOT>` | Half A = "none" |
 | `TASK_DIR` has no `milestone-*.md` | Half B = "none" |
 | Both halves "none" | empty block — caller skips injection |
 

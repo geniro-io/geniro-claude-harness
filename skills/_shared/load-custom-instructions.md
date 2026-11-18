@@ -53,8 +53,8 @@ The helper prints one echo line per file in the load set, then a `Read: <absolut
 
 The helper loads `pipeline` → `[global.md, memory.md, <SKILL_SLUG>.md, code-style.md]` in that order and `rules-only` → `[global.md, memory.md]`, from one base directory:
 
-- **External dir.** `$GENIRO_INSTRUCTIONS_DIR`, then `$CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR` (set by Claude Code from the plugin's `instructions_dir` install option), a leading `~` expanded to `$HOME`, replaces the repo as a flat layout — `<dir>/<file>`, with no checkout lookup and no primary-worktree fallback, because the override is explicit, not a merge. A configured dir that does not exist prints the bad-pointer caveat and the in-repo default applies.
-- **In-repo default.** `.geniro/instructions/<file>` under the checkout root first; only when that lacks the file, the same path under the main worktree (`PRIMARY_ROOT`, resolved once per call). The fallback covers a linked worktree whose checkout lacks the gitignored authored files, and a branch created before they were added.
+- **External dir.** `$GENIRO_INSTRUCTIONS_DIR`, then `$CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR` (set by Claude Code from the plugin's `instructions_dir` install option), a leading `~` expanded to `$HOME`, replaces the repo as a flat layout — `<dir>/<file>`, because the override is explicit, not a merge. A configured dir that does not exist prints the bad-pointer caveat and the in-repo default applies.
+- **In-repo default.** `<PRIMARY_ROOT>/.geniro/instructions/<file>` — the main checkout only, resolved once per call, so every worktree reads the one copy that writes land in; a branch's own committed copy under a linked worktree is not read.
 
 A missing file is a skip and an unreadable one a reported failure (`Failed to load`); neither halts the consumer, and the helper exits 0 either way.
 
@@ -62,7 +62,7 @@ Apply the loaded content:
 
 - `## Rules` → standing rules active in every phase of the consumer skill, binding the orchestrator's own actions there too, not only the subagent prompts it builds — a declared search policy governs every lookup for the rest of the run, not just the first
 - `## Constraints` → a flat bullet list of hard gates, evaluated globally (or at a phase boundary when a bullet's text names one) — not organized into per-phase subsections; only `## Additional Steps` uses named-phase subsections
-- `## Additional Steps` → extra steps inserted at the named phase boundary, via the `### After <phase name>` form (if the skill has that phase; otherwise apply where they fit and skip the rest). `### After <phase name>` is the only form a consumer reads — a `### Before <phase name>` subsection has no read site in any skill, which is why `/geniro:instructions` rejects it at authoring time. The one event (non-phase) anchor is `### After worktree-setup` in `global.md` — a cross-skill step run right after a new worktree is created and before subagent fan-out (execution sites: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` §3, `/geniro:debug` Step 0.2's worktree pick, and `/geniro:review` triage), and also once before the run's first subagent fan-out when the run starts inside an existing linked worktree and creates none itself (`/geniro:investigate` Phase 2; run-twice-safe per branch-freshness §3.1); resolve `global.md` through the primary-worktree fallback, because a fresh linked worktree does not carry the gitignored authored file.
+- `## Additional Steps` → extra steps inserted at the named phase boundary, via the `### After <phase name>` form (if the skill has that phase; otherwise apply where they fit and skip the rest). `### After <phase name>` is the only form a consumer reads — a `### Before <phase name>` subsection has no read site in any skill, which is why `/geniro:instructions` rejects it at authoring time. The one event (non-phase) anchor is `### After worktree-setup` in `global.md` — a cross-skill step run right after a new worktree is created and before subagent fan-out (execution sites: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` §3, `/geniro:debug` Step 0.2's worktree pick, and `/geniro:review` triage), and also once before the run's first subagent fan-out when the run starts inside an existing linked worktree and creates none itself (`/geniro:investigate` Phase 2; run-twice-safe per branch-freshness §3.1); `global.md` resolves from the main checkout like every other file.
 - `## Data Sources` → read-only sources to cross-check load-bearing facts against, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`; absent = no declared sources
 - `## Verification Surface` → what each of the project's checks covers and leaves uncovered, consulted when the run picks which check demonstrates a criterion and when it states the result — the uncovered half bounds how wide the claim may be stated, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` §Forbidden phrases; absent = no declared mapping
 - `## Memory Backend` → routes L2 learnings through a project-declared backend at the `emit-learning` / `query-learnings` call-sites, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md`; absent = built-in `.geniro/knowledge/learnings.jsonl` file, unchanged
@@ -71,12 +71,11 @@ Apply the loaded content:
 
 The helper prints exactly one line per file in the load set. Counts are `lib/instruction-counts.sh`'s output for the exact file listed for Reading.
 
-Four success/skip formats, one failure, one caveat:
+Three success/skip formats, one failure, one caveat:
 
-- **Found in the checkout root:** `Loaded <filename> (<N> rules, <M> constraints[, <A> additional step(s): <anchor1>[, <anchor2>...]][, <D> data sources]).`
-- **Found via the primary-worktree fallback:** `Loaded <filename> from primary worktree (<N> rules, <M> constraints[, <A> additional step(s): <anchor1>[, ...]][, <D> data sources]).`
+- **Found in the main checkout:** `Loaded <filename> (<N> rules, <M> constraints[, <A> additional step(s): <anchor1>[, <anchor2>...]][, <D> data sources]).`
 - **Found in the external instructions dir:** `Loaded <filename> from external instructions dir (<N> rules, <M> constraints[, <A> additional step(s): <anchor1>[, ...]][, <D> data sources]).`
-- **Not found** (checkout root and fallback, or the external dir): `No <filename> found — skipping.`
+- **Not found** (main checkout or the external dir): `No <filename> found — skipping.`
 - **Unreadable** (a directory, permission denied): `Failed to load <filename>: <reason> — skipping.` It is never listed.
 - **Bad-pointer caveat** (printed once, before the first file): `External instructions dir <path> not found — using in-repo instructions.`
 
@@ -87,7 +86,6 @@ Loaded global.md (3 rules, 2 constraints).
 Loaded global.md (3 rules, 2 constraints, 2 data sources).
 Loaded implement.md (2 rules, 1 constraint, 1 additional step: After ship).
 Loaded plan.md (1 rule, 0 constraints, 2 additional steps: After explore, After user-approve).
-Loaded implement.md from primary worktree (2 rules, 1 constraint).
 Loaded code-style.md from external instructions dir (4 rules, 1 constraint).
 Loaded memory.md (memory backend: learnings → mirror).
 External instructions dir /opt/geniro-rules not found — using in-repo instructions.
@@ -99,7 +97,7 @@ Read: /repo/.geniro/instructions/global.md
 
 A file with zero rules or constraints prints the literal `0`. `, <D> data sources` appears only when the file has `## Data Sources` entries. `, <A> additional step(s): <anchors>` appears only when `## Additional Steps` holds at least one `### After <phase>` or `### Before <phase>` subsection with content, each named as authored — a `### Before <phase>` block is parsed but never read, and a phase name no skill reads (an authoring typo, or a dropped phase) shows up here as unfamiliar instead of staying invisible until the boundary it names never fires. When the counters fail on a readable file, `counts unavailable: <reason>` replaces the counts and the file is still listed: Read it.
 
-**`memory.md` is the exception to the rules/constraints parenthetical** — it carries the `## Memory Backend` block, not rules or constraints, so its success echo names the routed layer + mode instead: `Loaded memory.md (memory backend: <layer> → <mode>).` (the fallback / external-dir variants apply identically). When `memory.md` exists but declares no `## Memory Backend` entry, the echo is `Loaded memory.md (no memory backend declared).`; when absent, `No memory.md found — skipping.`
+**`memory.md` is the exception to the rules/constraints parenthetical** — it carries the `## Memory Backend` block, not rules or constraints, so its success echo names the routed layer + mode instead: `Loaded memory.md (memory backend: <layer> → <mode>).` (the external-dir variant applies identically). When `memory.md` exists but declares no `## Memory Backend` entry, the echo is `Loaded memory.md (no memory backend declared).`; when absent, `No memory.md found — skipping.`
 
 ## Mid-pipeline refresh
 
@@ -149,7 +147,7 @@ The four files this helper loads (`global.md`, `memory.md`, `<SKILL_SLUG>.md`, `
 | Reasoning | Why it's wrong |
 |---|---|
 | "I already know the rules from a previous turn — skip the helper." | Compaction may have silently dropped them, and the user may have edited the file mid-session via `/geniro:instructions edit`. Only a fresh helper call and Reads reflect the files now; in-memory context does not. |
-| "I'll always read from `PRIMARY_ROOT` directly and skip the checkout copy." | A checkout copy can be a committed branch-local copy — the default `.gitignore` negates `instructions/`, so instruction files may be tracked and legitimately diverge per branch. Checkout-root-first respects that divergence; primary-only reads lose it. The fallback fires ONLY when the checkout misses. |
+| "This worktree has its own instructions copy — read that one." | Reads and writes share one source, the main checkout. A worktree copy is invisible to every other session and diverges silently from what `/geniro:instructions edit` changes. |
 | "I'll read the files myself and write the echo lines afterwards." | A hand-written echo is the one that goes unwritten — in two real runs it was composed only in hidden reasoning and never reached chat. The helper prints the echo lines and names the paths to Read; a read made without it has no echo. |
 
 ## Definition of Done

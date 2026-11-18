@@ -220,6 +220,6 @@ state.md `phase: verify`. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/refacto
 
 ## State file schema
 
-T1.5 state.md at `.geniro/state/refactor/<slug>/state.md` (resumed or created at Phase 1 §1.0); `approvals[]` categories `refactor_high_step`, `refactor_product_decision`; `effort_tier` ∈ {unset, Trivial, Small, Medium, Big}. `## Plan steps` holds the per-step execution rows (schema at Phase 2 §2.2), distinct from `## Plan` which holds the ordered plan summary. No T2 handoff — diff IS the deliverable. Full frontmatter + body-section schema in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §2.
+T1.5 state.md at `<STATE_DIR>/state.md` (resumed or created at Phase 1 §1.0); `approvals[]` categories `refactor_high_step`, `refactor_product_decision`; `effort_tier` ∈ {unset, Trivial, Small, Medium, Big}. `## Plan steps` holds the per-step execution rows (schema at Phase 2 §2.2), distinct from `## Plan` which holds the ordered plan summary. No T2 handoff — diff IS the deliverable. Full frontmatter + body-section schema in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §2.
 
 ---

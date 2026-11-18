@@ -24,7 +24,7 @@ For the load-bearing rules referenced below: the validation rules are in `${CLAU
 
 The single source for every field's value set and length cap — validate-mode's per-scope check resolves here rather than restating them.
 
-- `slug` (required) — must satisfy the rules `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Discovery procedure Step 4 enforces at load time: the filename without `.md`, matching `^[a-z][a-z0-9-]*$`, and not colliding with a reserved dimension name. That file owns the reserved list, because it is the runtime enforcer — a slug this skill accepts but the loader rejects produces a file the user believes is active while its criteria silently never run.
+- `slug` (required) — must satisfy the rules `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Discovery procedure Step 3 enforces at load time: the filename without `.md`, matching `^[a-z][a-z0-9-]*$`, and not colliding with a reserved dimension name. That file owns the reserved list, because it is the runtime enforcer — a slug this skill accepts but the loader rejects produces a file the user believes is active while its criteria silently never run.
 - `description` (required) — one-line summary; the same routing-surface role `description-quality.md` grades, so the cap mirrors `_VAF_DESC_MAX_CHARS` in `${CLAUDE_PLUGIN_ROOT}/lib/validate-action-file.sh`, the action-file description's cap.
 - `model` (optional) — `haiku`/`sonnet`/`opus`/`fable`/`inherit`, plus `auto` (same as `inherit`); omitted = `inherit` (the reviewer runs at the orchestrator's tier, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`). Declare a tier only to deliberately pin this reviewer cheaper or stronger than the session.
 - `paths` (optional) — list of globs.
@@ -43,7 +43,7 @@ Custom reviewers in `.geniro/instructions/review-extra/<slug>.md` declare a new 
 - **Declare `requires-context:` when the criteria reference live external data.** Without it the reviewer silently sees none and produces empty or hallucinated findings.
 - **Test the reviewer on one diff before committing it.** Run `/geniro:review` against a known-good and a known-bad PR and confirm the findings look right; a misfiring reviewer pollutes every later review.
 - **Omit `model:` unless pinning deliberately** — `haiku` only for narrow pattern matchers, `opus` only for deep architectural concerns that must run strong from a cheaper session. Outside Claude Code those ids do not exist: omit the field (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Runtime resolution).
-- **Keep the count inside the band `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 6 defines** (the create flow's §Step 3 enforces it); consolidate when two reviewers' criteria overlap.
+- **Keep the count inside the band `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 5 defines** (the create flow's §Step 3 enforces it); consolidate when two reviewers' criteria overlap.
 
 ## Mode: create — review-extra variant
 
@@ -60,14 +60,14 @@ If the slug was provided on the command line (e.g., `/geniro:instructions create
 Refuse and re-ask if any of the following fail:
 
 - **Regex** — must match `^[a-z][a-z0-9-]*$` (lowercase ASCII letters/digits/hyphens, starts with a letter).
-- **No built-in collision** — must not match any reserved dimension name, case-insensitively. `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Discovery procedure Step 4 holds the list; check against that file rather than a copy, since it is what actually rejects the slug at load time. On collision, error: `Slug "{{slug}}" collides with built-in reviewer "{{built-in}}". Pick a different slug — e.g., "{{slug}}-strict" or "{{slug}}-custom".`
+- **No built-in collision** — must not match any reserved dimension name, case-insensitively. `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Discovery procedure Step 3 holds the list; check against that file rather than a copy, since it is what actually rejects the slug at load time. On collision, error: `Slug "{{slug}}" collides with built-in reviewer "{{built-in}}". Pick a different slug — e.g., "{{slug}}-strict" or "{{slug}}-custom".`
 - **No existing file** — `"$PRIMARY_ROOT"/.geniro/instructions/review-extra/{{slug}}.md` must not already exist. If it does, report: `<resolved path>` already exists. Use `/geniro:instructions edit review-extra {{slug}}` to modify it. and stop.
 
 On any validation failure, re-ask via `AskUserQuestion` with the error message included in the question text.
 
 ### Step 3: Check count caps
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 6 for the soft-warn band and the hard cap — that step is the runtime enforcer and the single home of both numbers. Then count the existing files:
+Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 5 for the soft-warn band and the hard cap — that step is the runtime enforcer and the single home of both numbers. Then count the existing files:
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/repo-root.sh"; PRIMARY_ROOT="$(_geniro_repo_root)"

@@ -49,7 +49,7 @@ SKILL.md § State machine lists the terminal and escalation sets; the SessionSta
 
 ## 2. State file schema
 
-### state.md (T1.5 — session-bound, `.geniro/state/debug/<slug>/state.md`)
+### state.md (T1.5 — session-bound, `<STATE_DIR>/state.md`)
 
 Frontmatter:
 

@@ -13,13 +13,13 @@ Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/investigate/SKILL.m
 
 ## 1. State file schema
 
-Path: `.geniro/state/investigate/<slug>/state.md` (cwd-relative — within-skill resume-from-compaction state per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Artifacts NOT in scope"; compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules).
+Path: `<STATE_DIR>/state.md`, where `STATE_DIR="$(source "${CLAUDE_PLUGIN_ROOT}/lib/unit-dir.sh" && _geniro_state_dir investigate)"` (re-run per Bash call) — main-checkout resume-from-compaction state per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`.
 
 Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`, each kind of update has one helper: `atomic_state_write` creates the file (below); `atomic_state_set_field "<path>" <field> <value>` changes an existing frontmatter field, every `phase:` and `dive_round:` update included; `atomic_state_append_list_item "<path>" approvals "<entry>"` adds an `approvals[]` entry (a multi-line mapping `set_field` cannot write); `atomic_state_append_section "<path>" "## <Section>" "<entry>"` appends to a body section (Tool log, JIT Cadence, Agent Findings, Verified Claims, Verifier Findings, Errors, Open Questions, Persisted approvals as the body render of an `approvals[]` entry); `atomic_state_edit "<path>" "<old>" "<new>"` replaces a span of body text (Draft Answer, Final Answer):
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
-atomic_state_write ".geniro/state/investigate/<slug>/state.md" <<EOF
+atomic_state_write "<STATE_DIR>/state.md" <<EOF
 ---
 tier: T1.5
 producer: investigate
@@ -109,7 +109,7 @@ PRE_INLINED_CONTEXT:
 {{paste verbatim contents of orchestrator-identified relevant files with absolute paths as section headers; the agent does NOT re-Glob}}
 ---END UNTRUSTED FILE-CONTENT---
 
-OUTPUT_PATH: {{absolute path under the investigate state dir — e.g., .geniro/state/investigate/<slug>/.research-out.md}}
+OUTPUT_PATH: {{absolute path under the investigate state dir — e.g., <STATE_DIR>/.research-out.md}}
 
 THOROUGHNESS: medium
 

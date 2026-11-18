@@ -145,7 +145,7 @@ state.md `phase: fix`. The only phase that edits source, and the only one that t
 
 ## Task execution entry / state recovery
 
-State file: `.geniro/state/resolve/<slug>/state.md` (T1.5, `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules). On entry, glob for it; if present, run the helper § Consumer contract and resume from the next incomplete phase. Validate via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` before resuming. Write each phase transition through `atomic_state_set_field` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`); a terminal phase (`done`/`aborted`) is final.
+State file: `<STATE_DIR>/state.md` (T1.5), where `STATE_DIR="$(source "${CLAUDE_PLUGIN_ROOT}/lib/unit-dir.sh" && _geniro_state_dir resolve)"` (slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules; re-run per Bash call). On entry, glob for it; if present, run the helper § Consumer contract and resume from the next incomplete phase. Validate via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` first. Write each phase transition through `atomic_state_set_field` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`); a terminal phase (`done`/`aborted`) is final.
 
 A resume into Phase 2 or Phase 3 re-runs the Phase 1 fetch and diffs it (#10): a new thread or comment joins the inventory and is triaged like any other item; a thread resolved while the run was away drops out rather than being re-triaged.
 

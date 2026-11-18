@@ -4,9 +4,10 @@
 # artifacts (spec.md, state.md, plan-*.md, milestone-*.md).
 #
 # Callers pass the dir that owns the scratch — a planning task-dir, or a slug dir
-# under .geniro/state/<skill>/ for a producer that keeps its own (see /resolve).
-# Both producer skills that write into .geniro/planning/<task-dir>/ call this at
-# their terminal exit. /geniro:implement cleaned its own task-dir already;
+# under .geniro/state/<skill>/. A relative `.geniro/…` path resolves into the main
+# checkout. Both producer skills that write into .geniro/planning/<task-dir>/ call
+# this at their terminal exit (/resolve deletes its own dir and does not).
+# /geniro:implement cleaned its own task-dir already;
 # /geniro:plan is read-only on SOURCE but still owns the scratch it writes, so it
 # must clean too — otherwise a plan-only run (or a milestone-sliced plan, where
 # /geniro:implement later runs in a DIFFERENT task-dir) leaves .research-*.md
@@ -29,9 +30,28 @@
 # nonexistent paths), so it is safe to call on any terminal path, including early
 # exits where no scratch was ever written.
 
+if [ -z "${_CTT_DEPS_LOADED:-}" ]; then
+  # Cross-shell self-location (see emit-learning.sh): BASH_SOURCE is bash-only.
+  if [ -n "${BASH_SOURCE:-}" ]; then
+    _ctt_self="${BASH_SOURCE[0]}"
+  elif [ -n "${ZSH_VERSION:-}" ]; then
+    eval '_ctt_self="${(%):-%x}"'
+  else
+    _ctt_self="$0"
+  fi
+  _ctt_script_dir="$(cd "$(dirname "$_ctt_self")" && pwd)"
+  # shellcheck disable=SC1091
+  source "$_ctt_script_dir/repo-root.sh"
+  _CTT_DEPS_LOADED=1
+fi
+
 clean_task_transients() {
   local task_dir="${1:-}"
   [ -n "$task_dir" ] || return 0
+  case "$task_dir" in
+    .geniro/*) task_dir="$(_geniro_repo_root)/$task_dir" ;;
+    ./.geniro/*) task_dir="$(_geniro_repo_root)/${task_dir#./}" ;;
+  esac
   [ -d "$task_dir" ] || return 0
   # ui-verify.png and playwright-verify.png are the single-screenshot names the
   # ship walkthrough used before the before/after pair; no run writes either now,

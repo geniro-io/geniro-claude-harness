@@ -15,7 +15,7 @@ All three callers detect the same four the same way, and they must: implement an
 |---|---|
 | `CURRENT_BRANCH` | `git branch --show-current` |
 | `CURRENT_TOPLEVEL` | `git rev-parse --show-toplevel` |
-| `IN_WORKTREE` | `CURRENT_TOPLEVEL` is registered in `git worktree list --porcelain` AND is NOT the porcelain `bare` row or the main worktree row. The porcelain registry is the source of truth; the `.claude/worktrees/<slug>/` path convention is a sanity check, NOT the primary signal. |
+| `IN_WORKTREE` | This checkout is a linked worktree: the absolute physical `git rev-parse --git-dir` differs from `git rev-parse --git-common-dir`. A bare-hub layout makes every checkout linked. |
 | `PROTECTED_BRANCH` | `CURRENT_BRANCH ∈ {main, master, develop, trunk}` |
 
 ## Why `PROTECTED_BRANCH` has no per-project override

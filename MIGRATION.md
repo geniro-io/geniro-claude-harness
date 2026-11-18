@@ -10,13 +10,29 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v5.0.0
 
+### Session-bound skill state, the audit report and planning now always live in the main checkout
+
+Every `.geniro/` write now lands in the repository's main checkout, never in a linked git worktree, so everything can be analysed in one place. Session-bound skill state (`/geniro:debug`, `/geniro:refactor`, `/geniro:onboard`, `/geniro:investigate`, `/geniro:resolve`, `/geniro:audit-instructions`) and the `/geniro:audit-instructions` dated report moved from the worktree's `.geniro/state/` to `<main>/.geniro/state/`. A project that tracks `.geniro/planning` in git now gets planning written to the main checkout too, where it can be committed from if you want it in history; the plugin no longer special-cases it. A bare-hub layout (`<hub>/.bare` plus a `<hub>/.git` file) resolves to the hub, not to its first worktree.
+
+Instructions, workflow and actions are read from the main checkout only, so a branch's own committed copy in a worktree no longer overrides main's.
+
+**Action required:** None for most installs. An in-flight run resumes from its old worktree location automatically: the resume check finds `./.geniro/state/<skill>/<slug>/state.md`, moves the whole dir to the main checkout and continues. If your project tracks `.geniro/planning` in git and you committed specs or handoffs inside a worktree's branch, copy or merge those task folders into the main checkout's `.geniro/planning/`: the skills now look only there, so they will not find the committed copies. Likewise merge any `.geniro/instructions/`, `workflow/` or `actions/` edits made on a branch inside a worktree into the main checkout: they no longer override main's.
+
+**Auto-detect:** N/A — nothing to detect; the resume path handles old state.
+
+**Auto-fix:** Manual-only — the planning and instruction/workflow/action merges above.
+
+**Severity:** LOW — old state still resumes; new files land in the main checkout, and instructions, workflow and actions are read from there only.
+
+---
+
 ### Review and debug handoffs, the review brief and task-dirs now live together in one unit dir
 
-Every human-facing artifact of one unit of work now sits in one folder, `<PLANNING_ROOT>/<unit>/`, next to `spec.md` and `state.md`. `<PLANNING_ROOT>` is the current worktree's `.geniro/planning` unless git ignores that path, else the main checkout's. Moved: the `/geniro:review` handoff to `<unit>/review.md`, the `/geniro:debug` handoffs to `<unit>/debug.md` and `<unit>/debug-adversarial.md`, the review brief to `<unit>/review-brief-<date>.md`; `/geniro:investigate` now saves its answer as `<unit>/investigate-<topic-slug>.md`. Task-dirs created by `/geniro:plan` and `/geniro:implement` resolve under `<PLANNING_ROOT>` instead of the current directory, so a task started in a linked worktree no longer loses its spec and state when the worktree is removed.
+Every human-facing artifact of one unit of work now sits in one folder, `<PLANNING_ROOT>/<unit>/`, next to `spec.md` and `state.md`. `<PLANNING_ROOT>` is the main checkout's `.geniro/planning`. Moved: the `/geniro:review` handoff to `<unit>/review.md`, the `/geniro:debug` handoffs to `<unit>/debug.md` and `<unit>/debug-adversarial.md`, the review brief to `<unit>/review-brief-<date>.md`; `/geniro:investigate` now saves its answer as `<unit>/investigate-<topic-slug>.md`. Task-dirs created by `/geniro:plan` and `/geniro:implement` resolve under `<PLANNING_ROOT>` instead of the current directory, so a task started in a linked worktree no longer loses its spec and state when the worktree is removed.
 
 Old files keep working: the skills still read `.geniro/state/handoff/from-{review,debug,debug-adversarial}-<branch>.md` when no handoff exists in the unit dir. New runs write only the new paths, so an old handoff you have not moved goes stale once a new run writes beside it.
 
-**Action required:** Move the old handoffs and briefs into their unit dir; the auto-fix does it. It moves nothing when `.geniro/planning` is not git-ignored here (the unit dir would then be this worktree's tree); move them yourself into the right branch's `<unit>/`. A brief moves only when its unit dir is unambiguous; others stay and the loop prints why. Task-dirs inside linked worktrees (`.geniro/planning/*/state.md` under a `git worktree list` path other than the main checkout) are not moved: finish the task, or copy the dir into `<PLANNING_ROOT>` yourself once no session is running it.
+**Action required:** Move the old handoffs and briefs into their unit dir; the auto-fix does it. A brief moves only when its unit dir is unambiguous; others stay and the loop prints why. Task-dirs inside linked worktrees (`.geniro/planning/*/state.md` under a `git worktree list` path other than the main checkout) are not moved: finish the task, or copy the dir into `<PLANNING_ROOT>` yourself once no session is running it.
 
 **Auto-detect:**
 
@@ -31,11 +47,6 @@ find "${root:-.}/.geniro/state/review" -path '*/.geniro/state/review/brief-*.md'
 ```bash
 source "${PLUGIN_PATH:-$CLAUDE_PLUGIN_ROOT}/lib/unit-dir.sh" || exit 1
 root="$(_geniro_repo_root)"
-top="$(git rev-parse --show-toplevel 2>/dev/null)"
-if [ -n "$top" ] && ! git -C "$top" check-ignore -q .geniro/planning/_probe/state.md; then
-  echo "left all: .geniro/planning is not git-ignored here; move the files into each branch's unit dir by hand"
-  exit 0
-fi
 known=""  # slugs whose real branch a legacy handoff supplied in this run
 move_to_unit() { # <file> <branch> <target name>
   unit="$(_geniro_unit_dir "$2")"
@@ -899,7 +910,7 @@ Both commands below sweep the current checkout's `.geniro/planning` and the main
 **Auto-detect:**
 
 ```bash
-pr="$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"; [ "$pr" = "$(pwd -P)" ] && pr=""
+pr="$(source "${PLUGIN_PATH:-$CLAUDE_PLUGIN_ROOT}/lib/repo-root.sh" && _geniro_repo_root)"; [ "$pr" = "$(pwd -P)" ] && pr=""
 find .geniro/planning ${pr:+"$pr/.geniro/planning"} -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o -name '.tr-out.md' -o -name '.adversarial-out.md' -o -name '.spec-challenge-out.md' -o -name '.research-*.md' -o -name 'playwright-verify.png' \) -exec sh -c '
   for f do
     s="${f%/*}/state.md"
@@ -912,7 +923,7 @@ find .geniro/planning ${pr:+"$pr/.geniro/planning"} -maxdepth 2 \( -name '.kr-ou
 **Auto-fix:**
 
 ```bash
-pr="$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"; [ "$pr" = "$(pwd -P)" ] && pr=""
+pr="$(source "${PLUGIN_PATH:-$CLAUDE_PLUGIN_ROOT}/lib/repo-root.sh" && _geniro_repo_root)"; [ "$pr" = "$(pwd -P)" ] && pr=""
 find .geniro/planning ${pr:+"$pr/.geniro/planning"} -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o -name '.tr-out.md' -o -name '.adversarial-out.md' -o -name '.spec-challenge-out.md' -o -name '.research-*.md' -o -name 'playwright-verify.png' \) -exec sh -c '
   for f do
     s="${f%/*}/state.md"

@@ -151,10 +151,19 @@ find_safety_json() {
     dir=$(dirname "$dir")
   done
   # A linked worktree never carries the gitignored .geniro/ — fall back to the
-  # main checkout, which prints its common dir as an absolute `<main>/.git`.
+  # main checkout: the parent of the common dir, or — in a bare-hub layout
+  # (`<hub>/.bare` + `<hub>/.git` = `gitdir: ./.bare`) — the hub.
   dir=$(git rev-parse --git-common-dir 2>/dev/null) || return 1
   case "$dir" in
     /*/.git) [ -f "${dir%/.git}/.geniro/safety.json" ] && { echo "${dir%/.git}/.geniro/safety.json"; return 0; } ;;
+    /*)
+      local hub="${dir%/*}" gf
+      if [ -f "$hub/.git" ]; then
+        gf=$(sed -n 's/^gitdir: *//p' "$hub/.git" | head -n 1)
+        case "$gf" in /*) ;; *) gf="$hub/$gf" ;; esac
+        [ "$(cd "$gf" 2>/dev/null && pwd -P)" = "$(cd "$dir" 2>/dev/null && pwd -P)" ] \
+          && [ -f "$hub/.geniro/safety.json" ] && { echo "$hub/.geniro/safety.json"; return 0; }
+      fi ;;
   esac
   return 1
 }

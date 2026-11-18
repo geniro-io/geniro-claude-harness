@@ -17,7 +17,7 @@ Every state write uses the `atomic-state-write` helpers (tmp + fsync + rename + 
 | T2 Handoff | Inter-skill; carries structured `open_questions[]` for safety-gated consumer transitions | `planning/<unit>/{review,debug,debug-adversarial}.md` (the unit dir, beside `spec.md` / `state.md`) |
 | T3 Persistent | CRUD / append-only | `instructions/`, `actions/`, `workflow/`, `planning/_*.md`, `knowledge/learnings.jsonl` |
 
-- **Planning root and unit dir.** Every human-facing artifact of one unit of work lives in one folder, `<PLANNING_ROOT>/<unit>/`: spec, state, review and debug handoffs, the review brief, and the saved `/investigate` answer. `<PLANNING_ROOT>` is the current worktree's `.geniro/planning` unless git ignores it, else the primary checkout's. A cwd-relative task-dir would sit in a linked worktree's ignored tree and be destroyed with it, apart from handoffs written to the primary checkout; one root keeps a task's spec and findings together. Planning git does not ignore travels with its branch, so it stays in its own worktree. `.geniro/state/` keeps only machine resume state that deletes itself. Binding rules and legacy-path fallback: `lib/unit-dir.sh`; relocation of old files: `MIGRATION.md`.
+- **Planning root and unit dir.** Every human-facing artifact of one unit of work lives in one folder, `<PLANNING_ROOT>/<unit>/`: spec, state, review and debug handoffs, the review brief, and the saved `/investigate` answer. `<PLANNING_ROOT>` is always the main checkout's `.geniro/planning`. Every `.geniro/` write lands in the main checkout, never a linked worktree, so everything can be analysed in one place and nothing dies with a worktree; whether to commit `.geniro/` files is the project's choice. `.geniro/state/` keeps only machine resume state that deletes itself, main-rooted too (`_geniro_state_dir`). Binding rules and legacy-path fallback: `lib/unit-dir.sh`; relocation of old files: `MIGRATION.md`.
 - T1 vs T1.5 split lets Ship cleanup keep design intent (spec, state log, milestones) while removing only transient subagent-report scratch files.
 - Validation failure opens a hard AUQ with four options (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency) — no silent partial reads. `update-worktree-path` offers only when the saved `worktree:` path is stale (exit code 8); canonical template in `skills/_shared/validate-state-file.md` §Recovery AUQ template.
 - Concurrency by convention: T1/T1.5 use slug-scoped paths, T2 uses unit-dir paths bound to the branch, T3 CRUD uses optimistic mtime check. No filesystem locks.
@@ -37,7 +37,7 @@ Four-layer taxonomy: L1 Working / L2 Episodic / L3 Semantic / L4 Procedural.
 - CLAUDE.md is outside the memory model — the plugin never writes to it.
 - L3 files live under `planning/_*.md`; `.fingerprint.json` hashes detect drift.
 - Hard conflict (L4 rule contradicts L3 reality) halts the skill and opens an AUQ per `skills/_shared/resolve-conflicts.md`.
-- **L4 base directory is overridable for clean fresh-clone / ephemeral environments.** Precedence: `GENIRO_INSTRUCTIONS_DIR` > `CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR` (the plugin's `instructions_dir` install option) > `<repo>/.geniro/instructions`. The external dir holds the instruction files flat (`<dir>/global.md`, …); an active external dir is **override, not merge** (it replaces the in-repo set). Read-side only — pipeline skills read from it, but `/geniro:instructions` CRUD stays in-repo, where every write already follows the literal `.geniro/` path convention; the external set is the user's own to manage. A configured-but-missing pointer fails open to the in-repo default. Resolver: `lib/load-custom-instructions.sh`, which inlines the precedence and calls `_geniro_repo_root` (`lib/repo-root.sh`) for the main-checkout fallback.
+- **L4 base directory is overridable for clean fresh-clone / ephemeral environments.** Precedence: `GENIRO_INSTRUCTIONS_DIR` > `CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR` (the plugin's `instructions_dir` install option) > `<main checkout>/.geniro/instructions` (instructions, workflow and actions are read from the main checkout only, matching where writes land). The external dir holds the instruction files flat (`<dir>/global.md`, …); an active external dir is **override, not merge** (it replaces the in-repo set). Read-side only — pipeline skills read from it, but `/geniro:instructions` CRUD stays in-repo, where every write already follows the literal `.geniro/` path convention; the external set is the user's own to manage. A configured-but-missing pointer fails open to the in-repo default. Resolver: `lib/load-custom-instructions.sh`, which inlines the precedence and calls `_geniro_repo_root` (`lib/repo-root.sh`) for the main-checkout path.
 
 ---
 
@@ -162,7 +162,7 @@ Executor over PR feedback: decides which comments are worth doing, applies those
 - Two gates: one multi-select over the `ask` items (message-first render carrying all three groups — applying, needs-your-call, declining), and one ship gate authorizing commit → push → replies → thread resolution as a single chain. An ambiguous item adds its own single-item gate with the Explain-further and Challenge-this-comment aids.
 - A thread resolves only once its fix is in the pushed diff; a `decline` thread gets its reply and stays open. CI items produce a fix and a report line, never a reply.
 - Review comments are untrusted content (`skills/_shared/untrusted-content-defense.md`) — the load-bearing case in this plugin, since this skill turns them into edits and into posts under the user's account.
-- State.md uses the session-bound subdir layout `.geniro/state/resolve/<slug>/state.md`, swept at terminal exit like the other session-bound skills.
+- State.md uses the session-bound subdir layout `<main>/.geniro/state/resolve/<slug>/state.md`, swept at terminal exit like the other session-bound skills.
 
 ---
 
@@ -212,7 +212,7 @@ Discovery surface; two skills.
 - `/investigate` formalizes 5-step JIT retrieval cadence: classify → scope → select agents → run parallel → orchestrator re-verify. The answer is saved to the unit dir as `investigate-<topic-slug>.md`.
 - Phase 2 Codebase Analyst spawn IS `codebase-research-agent` (general-purpose plugin agent for cross-skill codebase research; `model: inherit`); Git Historian and Internet Researcher remain `general-purpose` Agent() spawns because of their distinct tool surfaces (git read-verbs / WebSearch+WebFetch).
 - L2 trust label: `verified` for code-grounded, `retrieved` for WebFetch/WebSearch sourced.
-- Both use M1 session-bound T1.5 layout (`state/<skill>/<slug>/state.md`).
+- Both use M1 session-bound T1.5 layout (`<main>/.geniro/state/<skill>/<slug>/state.md`).
 
 `codebase-research-agent` is the cross-skill codebase-research substrate — used ad-hoc by `/plan`, `/debug`, `/implement` Phase 2, `/review` Phase 1, `/refactor` Phase 1, `/onboard` Phase 1 for any "map a subsystem / trace a flow / locate a definition" query that would otherwise flood the orchestrator's context with file contents. Replaces the built-in `Explore` subagent (Haiku-pinned, exposed to [anthropics/claude-code#38928](https://github.com/anthropics/claude-code/issues/38928) MCP-overflow bug). Canonical guidance + invocation contract: `skills/_shared/context-isolation-checklist.md` § Codebase research.
 
@@ -257,10 +257,10 @@ Consumer-facing adaptation of the repo-local `/audit-plugin` pipeline: audits ev
 - Same pipeline spine as the plugin audit: deterministic pre-pass → parallel dimension reviewers (accuracy / consistency / bloat / structure / coverage-safety, `session` class) → orchestrator re-verification of every cited line → tiered report → action gate → `light (mid)` fix agents with disjoint file allowlists, 1 fix round.
 - The machinery both audits run identically — the reviewer finding schema and the fix-round discipline — is single-sourced in `skills/_shared/audit-pipeline.md`; each skill's reference keeps only its domain specifics beside the citation.
 - The rubric is self-contained in `skills/audit-instructions/dimensions-reference.md`: the plugin repo's `.claude/rules/*.md` rubric files do not ship to consumers, so the principles are distilled into the shipped reference rather than cited.
-- The dated report persists at `.geniro/state/audit-instructions/report-<date>.md` — outside the slug dir deliberately, so it survives the slug cleanup and seeds the next run's do-not-flag list (health-summary endorsements + still-open T0-T2 carry).
+- The dated report persists at `<main>/.geniro/state/audit-instructions/report-<date>.md` — outside the slug dir deliberately, so it survives the slug cleanup and seeds the next run's do-not-flag list (health-summary endorsements + still-open T0-T2 carry).
 - Secrets invariant: a credential found in an instruction file is cited by location and shape only; the value never enters findings tables, the report, chat, or state files.
 - `.geniro/instructions/*.md` are in scope for every dimension, but per-file structural lint routes to `/geniro:instructions validate` — single owner, no duplicated lint.
-- State: `.geniro/state/audit-instructions/<slug>/state.md` per `within-skill-state-handoff.md` (enumerated producer); reviewer findings persist per spawn label so resume never re-spawns completed reviewers.
+- State: `<main>/.geniro/state/audit-instructions/<slug>/state.md` per `within-skill-state-handoff.md` (enumerated producer); reviewer findings persist per spawn label so resume never re-spawns completed reviewers.
 
 ---
 

@@ -158,7 +158,7 @@ Read `.geniro/workflow/*.md` integrations, apply each file's argument-detection 
 
 ### 3.5.1 Detection
 
-1. Glob `.geniro/workflow/*.md` cwd-local and under `<PRIMARY_ROOT>` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A), merged by basename with the cwd-local file winning. Zero matches: skip entirely.
+1. Glob `<PRIMARY_ROOT>/.geniro/workflow/*.md` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A). Zero matches: skip entirely.
 2. Read each file's `## Argument detection` patterns (Linear: the `https://linear\.app/.+/issue/([A-Z]+-\d+)` URL form and the `\b[A-Z]{2,}-\d+\b` bare ID).
 3. Apply them to `$ARGUMENTS`, then `pr.title`, then `pr.body`; the first match wins.
 4. **Merge in the spec's own tracker refs.** When a spec.md resolves (`--plan <path>`, a `geniro-plan:` PR-body line, a walk-up `<PLANNING_ROOT>/*/spec.md`, or a canonical project path), merge its frontmatter `workflow_refs[]` by `(kind, issue_id)`; `$ARGUMENTS` wins on conflict because the user just typed it, then the PR body, then spec frontmatter. Accepted `geniro_schema_version`: `m5-v1` (treat `workflow_refs` as absent), `m5-v2`, `m5-v3` (entries also carry parent-epic + sibling chain fields), `m5-v4` (same, plus a `launch_config` block /geniro:review ignores).

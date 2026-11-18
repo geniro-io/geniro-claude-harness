@@ -10,7 +10,7 @@ Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Ph
 
 ### Step 1 — Resolve target
 
-Apply `${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md` §Target resolution. Its Step 4 resolves which copy to edit — the canonical main-repo copy by default, the local branch copy when only it exists or the user picks it.
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md` §Target resolution. The resolved file is the main checkout's copy.
 
 ### Step 2 — Open for external editing
 
@@ -36,4 +36,4 @@ Run `${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md` §Validation gat
 
 The auto-validation does NOT block save; it surfaces. User remains in control. On any terminal pick here (Save anyway / Revert), remove the snapshot: `rm -f "<path>.pre-edit.bak"`.
 
-On a clean verdict, remove the snapshot — `rm -f "<path>.pre-edit.bak"` — then print: `Edited \`<resolved-path>\`. Run with \`/geniro:actions run <resolved-slug>\`.` When the edited copy is the main-repo one and the current directory is a different worktree, append: "Written to the main repo checkout, so it survives if this worktree is removed."
+On a clean verdict, remove the snapshot — `rm -f "<path>.pre-edit.bak"` — then print: `Edited \`<resolved-path>\`. Run with \`/geniro:actions run <resolved-slug>\`.` When the current directory is a different worktree, append: "Written to the main repo checkout, so it survives if this worktree is removed."

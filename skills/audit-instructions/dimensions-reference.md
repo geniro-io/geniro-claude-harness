@@ -37,7 +37,7 @@ One row per tool. Phase 0 enumerates the path column with Glob to build the run'
 | JetBrains Junie | `.junie/guidelines.md` | Loaded whole |
 | Zed | `.rules` | Loaded whole |
 | Amazon Q | `.amazonq/rules/*.md` | Loaded whole |
-| Geniro | `.geniro/instructions/*.md` | In scope for every dimension; per-file structural lint alone is owned by `/geniro:instructions validate` — route structural findings there instead of duplicating that lint |
+| Geniro | `.geniro/instructions/*.md` | Read from the main checkout (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A), never cwd. In scope for every dimension; per-file structural lint alone is owned by `/geniro:instructions validate` — route structural findings there instead of duplicating that lint |
 
 **Scope boundaries.**
 - User-global files (`~/.claude/CLAUDE.md`, per-user Cursor or Copilot settings) live outside the repo and are out of scope.
@@ -51,7 +51,7 @@ Read at Phase 0 alongside the rubric sections.
 
 **Inventory** — record in the state checkpoint: per tool, the surfaces found (word count per file via `awk '{w+=NF}'` — `wc -w` answers differently per locale), the activity signal (present/absent), and whether the surface is always-on or scoped per the loading notes above.
 
-**State checkpoint** — write `.geniro/state/audit-instructions/<slug>/state.md` (producer `audit-instructions`) via `atomic_state_write` (source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`). Slug and the full slug-scoped T1.5 frontmatter per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules and §Producer contract — the field set, the line-1 rule, and the `validate_state_file` consequences live there. Each checkpoint records: phase completed, scope, dimensions selected, finding counts, reviewer findings-file paths. The first checkpoint creates the file; every later one advances `phase:` with `atomic_state_set_field` and appends its log line with `atomic_state_append_section` — re-rendering the whole file carries an untouched field forward stale.
+**State checkpoint** — write `<STATE_DIR>/state.md` (producer `audit-instructions`; `STATE_DIR="$(source "${CLAUDE_PLUGIN_ROOT}/lib/unit-dir.sh" && _geniro_state_dir audit-instructions)"`) via `atomic_state_write` (source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`). Slug and the full slug-scoped T1.5 frontmatter per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules and §Producer contract — the field set, the line-1 rule, and the `validate_state_file` consequences live there. Each checkpoint records: phase completed, scope, dimensions selected, finding counts, reviewer findings-file paths. The first checkpoint creates the file; every later one advances `phase:` with `atomic_state_set_field` and appends its log line with `atomic_state_append_section` — re-rendering the whole file carries an untouched field forward stale.
 
 ## Reviewer spawn template
 

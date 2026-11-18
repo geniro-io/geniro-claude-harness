@@ -61,6 +61,7 @@ if ! command -v _geniro_repo_root >/dev/null 2>&1; then
   _geniro_repo_root() { echo "${PWD:-.}"; }
 fi
 GENIRO_ROOT="$(_geniro_repo_root)"
+export _GENIRO_ROOT_WARNED=1
 
 # Resolve where L4 custom instructions load from — an external override
 # (GENIRO_INSTRUCTIONS_DIR / the plugin's instructions_dir option) means
@@ -180,8 +181,8 @@ if [ -d "$LEGACY_PLANNING" ] && [ "$(cd "$LEGACY_PLANNING" && pwd -P)" = "$(cd "
   LEGACY_PLANNING=""
 fi
 
-# Find the nearest .geniro/safety.json walking up from cwd. Mirrors
-# block-geniro-force-add.sh so the auto-archive opt-out is honored regardless
+# Find the nearest .geniro/safety.json walking up from cwd, like
+# block-geniro-force-add.sh does, so the auto-archive opt-out is honored regardless
 # of cwd depth (a single cwd-relative check misses the opt-out from any
 # subdirectory or linked worktree).
 find_safety_json() {
@@ -195,12 +196,8 @@ find_safety_json() {
   done
   # .geniro/ is gitignored, so a linked worktree never carries safety.json, and
   # one checked out outside the repo never walks up to it — fall back to the
-  # main checkout. Only a linked worktree prints its common dir as an absolute
-  # `<main>/.git`; the main checkout (already walked) and bare hubs skip this.
-  dir=$(git rev-parse --git-common-dir 2>/dev/null) || return 1
-  case "$dir" in
-    /*/.git) [ -f "${dir%/.git}/.geniro/safety.json" ] && { echo "${dir%/.git}/.geniro/safety.json"; return 0; } ;;
-  esac
+  # main checkout, which the repo-root helper resolves (bare hubs included).
+  [ -f "$GENIRO_ROOT/.geniro/safety.json" ] && { echo "$GENIRO_ROOT/.geniro/safety.json"; return 0; }
   return 1
 }
 
@@ -322,10 +319,37 @@ fi
 
 # Tier 1b — layout B (session-bound skills)
 if [ -z "$state_file" ] && [ -n "$slug" ]; then
-  for _skill_dir in ./.geniro/state/*/; do
+  # Session-bound state is written under the main checkout; ./.geniro/state/ is
+  # the legacy location inside a linked worktree (same dir when cwd is main).
+  _t1b_top="$(git rev-parse --show-toplevel 2>/dev/null | { read -r _t && cd "$_t" 2>/dev/null && pwd -P; })"
+  _t1b_main_state="$(cd "$GENIRO_ROOT/.geniro/state" 2>/dev/null && pwd -P)"
+  _t1b_cwd_state="$(cd ./.geniro/state 2>/dev/null && pwd -P)"
+  _t1b_stale_days="${GENIRO_RESUME_STALE_DAYS:-14}"
+  case "$_t1b_stale_days" in ''|*[!0-9]*) _t1b_stale_days=14 ;; esac
+  _t1b_now=$(date +%s 2>/dev/null || echo 0)
+  for _skill_dir in "$GENIRO_ROOT"/.geniro/state/*/ ./.geniro/state/*/; do
     [ -d "$_skill_dir" ] || continue
+    case "$_skill_dir" in
+      ./*) [ "$_t1b_cwd_state" = "$_t1b_main_state" ] && continue ;;
+    esac
     _candidate="${_skill_dir}${slug}/state.md"
     if [ -f "$_candidate" ] && ! _is_terminal_candidate "$_candidate"; then
+      _cand_wt="$(_fm_scalar_quick "$_candidate" worktree)"
+      if [ -n "$_cand_wt" ] && [ "$(cd "$_cand_wt" 2>/dev/null && pwd -P)" != "$_t1b_top" ]; then
+        continue
+      fi
+      case "$_candidate" in
+        /*)
+          # Main-held state outlives its worktree: a worktree re-created at the
+          # same path and branch must not resume a run abandoned past the cutoff.
+          if [ "$_t1b_top" != "$GENIRO_ROOT" ] && [ "$_t1b_stale_days" -gt 0 ] && [ "$_t1b_now" -gt 0 ]; then
+            _t1b_mtime=$(stat -c %Y "$_candidate" 2>/dev/null || stat -f %m "$_candidate" 2>/dev/null || echo 0)
+            if [ "$_t1b_mtime" -gt 0 ] && [ "$(( _t1b_now - _t1b_mtime ))" -gt "$(( _t1b_stale_days * 86400 ))" ]; then
+              continue
+            fi
+          fi
+          ;;
+      esac
       state_file="$_candidate"
       break
     fi
@@ -342,13 +366,13 @@ fi
 
 # Tier 2 — frontmatter `branch:` field grep across all candidate state.md files.
 # Iterates layouts A+B+C, with mtime tiebreak when multiple match. Scans both
-# cwd-relative paths (covers task-local state.md per primary-worktree.md
-# §"Artifacts NOT in scope") AND $GENIRO_ROOT-rooted singleton/cross-session
-# state (covers /setup state.md plus any future singleton layouts). Dedup by
+# cwd-relative paths (legacy state inside a linked worktree) AND $GENIRO_ROOT-rooted
+# session-bound and singleton state (/setup state.md and the rest). Dedup by
 # absolute path so the cwd-IS-primary case doesn't double-count.
 #
 # Staleness gate (Tier 2 ONLY): Tier 1 is an exact slug/path match — a strong
-# signal the user is actively on this task's branch — so it is never gated. Tier 2
+# signal the user is actively on this task's branch — so it is never gated, except
+# main-held state read from a linked worktree (Tier 1b above). Tier 2
 # matches only on the recorded `branch:` field, a far weaker signal: a `/plan` run
 # is authored on `main` (the feature branch is cut later, at /implement) and so
 # records `branch: main`; left at a non-terminal phase it would otherwise
@@ -416,7 +440,7 @@ if [ -z "$state_file" ]; then
        && ! _is_terminal_candidate "$_candidate"; then
       # Worktree gate — a branch match alone is too weak a signal once more
       # than one run shares the branch name (a shared `main`, or an
-      # investigate topic-slug); when the candidate also recorded a
+      # investigate run on a shared branch); when the candidate also recorded a
       # `worktree:` field, require it to name THIS session's worktree too.
       # A candidate with no `worktree:` field predates the field or never
       # needed it — keep the branch-only match for it. Compared as real
@@ -835,28 +859,38 @@ esac
 
 BLOCK1="$_prefix
 SKILL.md instructions and conversation nuance may have been lost — re-read these
-files before continuing. Each path is already resolved: the working tree's copy
-when it has one, else the main checkout's. Inside a skill run the
+files before continuing. Each .geniro/ path is already resolved to the main
+checkout's copy. Inside a skill run the
 .geniro/instructions/* entries go through the canonical loader; everything else
 is a direct Read:"
 
-# .geniro/ is gitignored, so a linked worktree — a Geniro session worktree under
-# the app's data dir, or one under .claude/worktrees/ — does not carry it. A
-# session with no skill running never reads the loader, so without this line it
-# looks under its own cwd, finds nothing, and concludes the project has no
-# instructions. Only a linked worktree prints its common dir as an absolute
-# `<main>/.git` (the same test as find_safety_json).
-case "$(git rev-parse --git-common-dir 2>/dev/null || true)" in
-  /*/.git)
-    if [ -d "$GENIRO_ROOT/.geniro" ]; then
-      BLOCK1="This session runs in a linked git worktree. .geniro/ is gitignored, so the
-worktree does not carry it: this project's .geniro/ (instructions, actions,
-workflow, knowledge, planning) lives in the main checkout at $GENIRO_ROOT/.geniro/.
-Look there for any .geniro/ file before concluding it does not exist.
+# A session with no skill running never reads the instruction loader, so without
+# this notice it looks under its own cwd and may conclude the project has no
+# .geniro/. A linked worktree (bare hubs included) is the case where git's own
+# dir differs from the common dir; a nested independent repo is not one.
+_wt_gd="$(git rev-parse --path-format=absolute --git-dir 2>/dev/null || true)"
+_wt_cd="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+[ -n "$_wt_gd" ] && _wt_gd="$(cd "$_wt_gd" 2>/dev/null && pwd -P)"
+[ -n "$_wt_cd" ] && _wt_cd="$(cd "$_wt_cd" 2>/dev/null && pwd -P)"
+if [ -n "$_wt_gd" ] && [ -n "$_wt_cd" ] && [ "$_wt_gd" != "$_wt_cd" ] \
+   && [ -d "$GENIRO_ROOT/.geniro" ]; then
+  BLOCK1="This session runs in a linked git worktree. .geniro/ files are written to and
+looked up in the main checkout at $GENIRO_ROOT/.geniro/.
 $BLOCK1"
-    fi
-    ;;
-esac
+fi
+
+# A linked worktree whose .git file points at a gitdir that no longer exists:
+# the main checkout was moved or renamed, so git (and the root helper) fail here.
+_gd_dir="$PWD"
+while [ "$_gd_dir" != "/" ] && [ ! -e "$_gd_dir/.git" ]; do _gd_dir=$(dirname "$_gd_dir"); done
+if [ -f "$_gd_dir/.git" ]; then
+  _gd_target="$(sed -n 's/^gitdir: *//p' "$_gd_dir/.git" 2>/dev/null | head -n 1)"
+  case "$_gd_target" in /*) ;; *) _gd_target="$_gd_dir/$_gd_target" ;; esac
+  if [ -n "$_gd_target" ] && [ ! -e "$_gd_target" ]; then
+    BLOCK1="The main checkout of this worktree appears to have moved: its .git file points at $_gd_target, which no longer exists. .geniro/ writes will fall back to this worktree; run \`git worktree repair\` from the main checkout's new location to fix it.
+$BLOCK1"
+  fi
+fi
 
 # When custom instructions resolve to an external directory (set via
 # GENIRO_INSTRUCTIONS_DIR or the plugin's instructions_dir option), the loader
@@ -892,15 +926,10 @@ drops them while keeping file pointers):
   plan looks like it wants one to, re-read that skill's SKILL.md before acting."
 fi
 
-# The path a Read should open for a .geniro/ file, in the loaders' order: the
-# working tree's copy when it exists (a branch may carry its own), else the main
-# checkout's. Neither → the relative path, unchanged.
+# The path a Read should open for a .geniro/ file: always the main checkout's,
+# present or not — a relative path would open the working tree's copy.
 _geniro_read_path() {  # <.geniro/... relative path>
-  if [ ! -f "$1" ] && [ -f "$GENIRO_ROOT/$1" ]; then
-    printf '%s' "$GENIRO_ROOT/$1"
-  else
-    printf '%s' "$1"
-  fi
+  printf '%s' "$GENIRO_ROOT/$1"
 }
 # An external instructions dir is an override, not a fallback: read it flat.
 _geniro_instr_path() {  # <file name>

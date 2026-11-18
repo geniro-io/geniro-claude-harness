@@ -149,6 +149,38 @@ else
   fail "clean-task-transients.sh — direct CLI invocation misbehaved"
 fi
 
+# Test 8: a relative .geniro/ dir resolves into main from a linked worktree and
+# from a subdirectory of main; an absolute dir is untouched; empty stays a no-op.
+mr="$(cd "$(mktemp -d "$TMPDIR/mainroute.XXXXXX")" && pwd -P)"
+git init -q -b main "$mr/main"
+git -C "$mr/main" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+git -C "$mr/main" worktree add -q "$mr/wt" -b wt 2>/dev/null
+mkdir -p "$mr/main/sub"
+seed_task_dir "$mr/main/.geniro/planning/t"
+seed_task_dir "$mr/wt/.geniro/planning/t"
+( cd "$mr/wt" && clean_task_transients ".geniro/planning/t" )
+if [ ! -f "$mr/main/.geniro/planning/t/.research-backend.md" ] && [ -f "$mr/main/.geniro/planning/t/spec.md" ] \
+   && [ -f "$mr/wt/.geniro/planning/t/.research-backend.md" ]; then
+  pass "clean_task_transients — relative .geniro/ dir from a linked worktree cleans main's, not its own"
+else
+  fail "clean_task_transients — worktree-relative dir was not routed to main"
+fi
+seed_task_dir "$mr/main/.geniro/planning/t"
+( cd "$mr/main/sub" && clean_task_transients "./.geniro/planning/t" )
+if [ ! -f "$mr/main/.geniro/planning/t/.research-backend.md" ] && [ -f "$mr/main/.geniro/planning/t/spec.md" ]; then
+  pass "clean_task_transients — ./.geniro/ dir from a subdirectory of main cleans main's"
+else
+  fail "clean_task_transients — subdirectory-relative dir was not routed to main"
+fi
+( cd "$mr/main/sub" && clean_task_transients "$mr/wt/.geniro/planning/t" )
+if [ ! -f "$mr/wt/.geniro/planning/t/.research-backend.md" ]; then
+  pass "clean_task_transients — an absolute dir is cleaned as given"
+else
+  fail "clean_task_transients — absolute dir was not cleaned"
+fi
+( cd "$mr/wt" && clean_task_transients "" ); rc=$?
+if [ "$rc" -eq 0 ]; then pass "clean_task_transients — empty arg stays a no-op rc 0"; else fail "clean_task_transients — empty arg rc=$rc"; fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

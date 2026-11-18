@@ -376,6 +376,22 @@ if command -v git >/dev/null 2>&1; then
     cd "$WT_PLAIN_LINKED" || exit 1
     expect_block "a linked worktree with no safety.json anywhere still blocks" "$(run_cmd 'git add -f .geniro/actions/foo.md')"
     cd "$TMPDIR_BASE" || exit 1
+    HUB="$TMPDIR_BASE/wt-hub"
+    mkdir -p "$HUB/.geniro"
+    git_env git init -q --bare "$HUB/.bare" >/dev/null 2>&1
+    printf 'gitdir: ./.bare\n' > "$HUB/.git"
+    git_env git -C "$HUB" update-ref refs/heads/main "$(git_env git -C "$HUB" commit-tree -m init "$(git -C "$HUB" hash-object -t tree -w /dev/null)")" >/dev/null 2>&1
+    git_env git -C "$HUB" worktree add -q "$HUB/wt" -b hub-b main >/dev/null 2>&1
+    printf '%s\n' '{"allow_patterns":["git-add-force-geniro"]}' > "$HUB/.geniro/safety.json"
+    if [ -f "$HUB/wt/.git" ]; then
+      cd "$HUB/wt" || exit 1
+      expect_allow "bypass in a bare-hub main honored from its linked worktree" "$(run_cmd 'git add -f .geniro/actions/foo.md')"
+      rm -f "$HUB/.geniro/safety.json"
+      expect_block "bare-hub worktree with no safety.json still blocks" "$(run_cmd 'git add -f .geniro/actions/foo.md')"
+      cd "$TMPDIR_BASE" || exit 1
+    else
+      fail "bare-hub fixture: git worktree add did not produce a linked checkout"
+    fi
   else
     fail "linked-worktree fixture: git worktree add did not produce a linked checkout without .geniro/"
   fi

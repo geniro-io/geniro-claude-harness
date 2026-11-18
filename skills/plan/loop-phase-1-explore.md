@@ -53,7 +53,7 @@ Canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §Echo contract �
 
 Runs only when `$ARGUMENTS` carries a tracker reference (Linear URL/ID, Jira key, GitHub issue URL, Asana task URL), and before the §1.2 spawns. Without one the spec has no `workflow_refs[]`.
 
-1. **Fetch.** Each tracker's patterns live in `.geniro/workflow/<kind>.md` — `./` first, then `<PRIMARY_ROOT>/` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A). Fetch through the MCP tool that file names for `<kind>`; a project may register any client under any tool name.
+1. **Fetch.** Each tracker's patterns live in `<PRIMARY_ROOT>/.geniro/workflow/<kind>.md` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A). Fetch through the MCP tool that file names for `<kind>`; a project may register any client under any tool name.
 2. **Persist.** Append the ref to state.md `## Workflow Refs` via `atomic_state_append_section --create`, in the `workflow_refs[]` entry shape of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` §Frontmatter. The fetched payload feeds the research-agent prompts, and Phase 6 copies this block into the spec frontmatter.
 3. **Assemble the chain.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md` (MODE: plan) to the fetched ref(s) and the task-dir; merge its `ENRICHED_REFS` into the `## Workflow Refs` block via `atomic_state_edit`; hold the "TASK CHAIN CONTEXT" block fenced as `TASK-CHAIN` (that file's §5; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/untrusted-content-defense.md` §Untrusted-content fence) for the spawn prompts. The milestone half is derived fresh each run and never persisted.
 

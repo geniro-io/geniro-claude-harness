@@ -95,10 +95,10 @@ EOF
 
 ### Step 6: Cleanup
 
-Every terminal exit runs this — `done` after "Done", `present-summary-only` after "I have a follow-up question". The `/geniro:update` migration walk scans only `.geniro/planning`, so a skipped cleanup leaks the scratch directory. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract. Write the terminal `phase:` first, so a surviving state file reads as complete to SessionStart recovery. When state.md `## Scope` recorded a `CLONE_ROOT`, read it before the delete and remove that clone directory too.
+Every terminal exit runs this — `done` after "Done", `present-summary-only` after "I have a follow-up question"; a skipped cleanup leaks the scratch directory. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract. Write the terminal `phase:` first, so a surviving state file reads as complete to SessionStart recovery. When state.md `## Scope` recorded a `CLONE_ROOT`, read it before the delete and remove that clone directory too.
 
 ```bash
-[ -n "$slug" ] && rm -rf ".geniro/state/investigate/$slug/"
+STATE_DIR="$(source "${CLAUDE_PLUGIN_ROOT}/lib/unit-dir.sh" && _geniro_state_dir investigate)"; [ -n "$STATE_DIR" ] && rm -rf "$STATE_DIR/"
 ```
 
 The saved answer stays; it and the Step 5 learning are the run's durable output.

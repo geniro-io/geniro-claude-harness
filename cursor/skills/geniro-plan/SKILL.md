@@ -23,7 +23,7 @@ Turn a vague idea into an approved `spec.md` that `/geniro:implement` consumes d
 - spec.md at `<PLANNING_ROOT>/<task-slug>/spec.md` with the fixed section schema (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`), goal-state frontmatter, and all three design-doc detection markers per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`.
 - For Big tasks: sibling `milestone-N.md` files.
 - state.md at the same task-dir tracking phase progress + AUQ answers.
-- `git commit` — fires at Phase 8 post-approve, NOT Phase 6: spec.md (+ milestones) plus the glossary entries and ADR files the Phase 3 grill wrote. When the project ignores `.geniro/planning/` (the default `.gitignore` does), the spec stays on disk uncommitted and only those docs are committed.
+- `git commit` — fires at Phase 8 post-approve, NOT Phase 6: spec.md (+ milestones) plus the glossary entries and ADR files the Phase 3 grill wrote. When the project ignores `.geniro/planning/` (the default `.gitignore` does) or the run sits in a linked worktree, the spec stays on disk uncommitted and only those docs are committed.
 
 The HARD-GATE in `plan-loop.md` blocks any implementation invocation until Phase 8 returns "Approve".
 

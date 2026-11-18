@@ -59,6 +59,35 @@ case "$GENIRO_APPEND_MAX_BYTES" in
 esac
 [ "$GENIRO_APPEND_MAX_BYTES" -lt 1 ] && GENIRO_APPEND_MAX_BYTES=4094
 
+# A relative `.geniro/…` target is rewritten to <main checkout>/.geniro/…, so a
+# call from a linked worktree or a subdirectory still lands in main. Absolute
+# paths and any other relative path pass through.
+if [ -z "${_ASW_DEPS_LOADED:-}" ]; then
+  # Cross-shell self-location (see emit-learning.sh): BASH_SOURCE is bash-only.
+  if [ -n "${BASH_SOURCE:-}" ]; then
+    _asw_self="${BASH_SOURCE[0]}"
+  elif [ -n "${ZSH_VERSION:-}" ]; then
+    eval '_asw_self="${(%):-%x}"'
+  else
+    _asw_self="$0"
+  fi
+  _asw_script_dir="$(cd "$(dirname "$_asw_self")" && pwd)"
+  # shellcheck disable=SC1091
+  source "$_asw_script_dir/repo-root.sh"
+  _ASW_DEPS_LOADED=1
+fi
+
+_atomic_state_resolve_target() {
+  local rest root
+  case "$1" in
+    .geniro/*) rest="$1" ;;
+    ./.geniro/*) rest="${1#./}" ;;
+    *) printf '%s' "$1"; return 0 ;;
+  esac
+  root="$(_geniro_repo_root)" || true
+  if [ -n "$root" ]; then printf '%s' "$root/$rest"; else printf '%s' "$1"; fi
+}
+
 # Per-file sync capability, probed once per shell.
 #
 # `sync -d <path>` fsyncs one file on GNU coreutils. BSD/macOS `sync` takes no
@@ -176,6 +205,7 @@ atomic_state_write() {
     echo "atomic_state_write: target path required" >&2
     return 64
   fi
+  target="$(_atomic_state_resolve_target "$target")"
   (
     dir="$(_atomic_state_prepare_dir "$target")" || {
       echo "atomic_state_write: failed to mkdir $(dirname "$target")" >&2
@@ -231,6 +261,7 @@ atomic_state_write_cmd() {
     echo "atomic_state_write_cmd: target path required" >&2
     return 64
   fi
+  target="$(_atomic_state_resolve_target "$target")"
   shift
   if [ "$#" -eq 0 ]; then
     echo "atomic_state_write_cmd: producer command required" >&2
@@ -288,6 +319,7 @@ atomic_state_edit() {
     echo "atomic_state_edit: target path required" >&2
     return 64
   fi
+  target="$(_atomic_state_resolve_target "$target")"
   if [ -z "$old" ]; then
     echo "atomic_state_edit: old text required (empty matches everywhere)" >&2
     return 64
@@ -384,6 +416,7 @@ atomic_state_set_field() {
     echo "atomic_state_set_field: target path and field name required" >&2
     return 64
   fi
+  target="$(_atomic_state_resolve_target "$target")"
   # A forgotten third argument used to blank the field at rc 0 — a typo silently
   # destroying the value this helper family exists to protect. An explicit ""
   # still sets an empty value; an omitted argument is an error.
@@ -510,6 +543,7 @@ atomic_state_append_section() {
     echo "atomic_state_append_section: target path and heading required" >&2
     return 64
   fi
+  target="$(_atomic_state_resolve_target "$target")"
   if [ -z "$text" ]; then
     echo "atomic_state_append_section: text required; nothing appended to $target" >&2
     return 64
@@ -634,6 +668,7 @@ atomic_state_append_list_item() {
     echo "atomic_state_append_list_item: target path and key required" >&2
     return 64
   fi
+  target="$(_atomic_state_resolve_target "$target")"
   if [ -z "$item" ]; then
     echo "atomic_state_append_list_item: item required; nothing appended to $target" >&2
     return 64
@@ -739,6 +774,7 @@ atomic_state_append() {
     echo "atomic_state_append: target path required" >&2
     return 64
   fi
+  target="$(_atomic_state_resolve_target "$target")"
 
   # Ensure parent directory exists.
   local dir

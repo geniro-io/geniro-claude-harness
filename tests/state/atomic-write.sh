@@ -1422,6 +1422,60 @@ else
   fail "sync probe (Linux): HAS_D=$has_d, sync calls: $(cat "$shim/sync.calls" 2>/dev/null)"
 fi
 
+# --- main-checkout routing of relative .geniro/ targets --------------------
+
+mr="$(mktemp -d "$TMPDIR/mainroute.XXXXXX")"
+mr="$(cd "$mr" && pwd -P)"
+git init -q -b main "$mr/main"
+git -C "$mr/main" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+git -C "$mr/main" worktree add -q "$mr/wt" -b wt 2>/dev/null
+mkdir -p "$mr/main/sub/dir"
+( cd "$mr/wt" && printf 'hello\n' | atomic_state_write ".geniro/state/x/a.md" )
+if [ "$(cat "$mr/main/.geniro/state/x/a.md" 2>/dev/null)" = "hello" ] && [ ! -e "$mr/wt/.geniro" ]; then
+  pass "main routing — relative .geniro/ write from a linked worktree lands in main"
+else
+  fail "main routing — worktree write: main has '$(cat "$mr/main/.geniro/state/x/a.md" 2>/dev/null)', worktree .geniro exists=$([ -e "$mr/wt/.geniro" ] && echo yes || echo no)"
+fi
+
+( cd "$mr/main/sub/dir" \
+  && printf -- '---\nphase: a\n---\n## Log\n' | atomic_state_write "./.geniro/state/x/b.md" \
+  && atomic_state_set_field ".geniro/state/x/b.md" phase b \
+  && atomic_state_append_section ".geniro/state/x/b.md" "## Log" "- e" \
+  && atomic_state_edit ".geniro/state/x/b.md" "- e" "- f" \
+  && atomic_state_append ".geniro/state/x/c.jsonl" <<< '{"k":1}' \
+  && atomic_state_write_cmd ".geniro/state/x/d.md" printf 'd\n' )
+if grep -q '^phase: b' "$mr/main/.geniro/state/x/b.md" && grep -q -- '- f' "$mr/main/.geniro/state/x/b.md" \
+   && [ -f "$mr/main/.geniro/state/x/c.jsonl" ] && [ -f "$mr/main/.geniro/state/x/d.md" ] \
+   && [ ! -e "$mr/main/sub/dir/.geniro" ]; then
+  pass "main routing — every helper from a subdirectory of main lands in main's .geniro/"
+else
+  fail "main routing — subdirectory writes: stray .geniro in subdir=$([ -e "$mr/main/sub/dir/.geniro" ] && echo yes || echo no)"
+fi
+
+( cd "$mr/wt" && atomic_state_set_field "$mr/main/.geniro/state/x/b.md" phase c \
+  && printf 'plain\n' | atomic_state_write "notgeniro/e.md" )
+if grep -q '^phase: c' "$mr/main/.geniro/state/x/b.md" && [ -f "$mr/wt/notgeniro/e.md" ] \
+   && [ ! -e "$mr/main/notgeniro" ]; then
+  pass "main routing — absolute and non-.geniro relative targets are untouched"
+else
+  fail "main routing — absolute/other relative target was rewritten"
+fi
+
+bad=""
+( cd "$mr/wt"
+  atomic_state_write "" </dev/null 2>/dev/null; [ $? -eq 64 ] || exit 1
+  atomic_state_write_cmd "" true 2>/dev/null; [ $? -eq 64 ] || exit 1
+  atomic_state_edit "" a b 2>/dev/null; [ $? -eq 64 ] || exit 1
+  atomic_state_set_field "" k v 2>/dev/null; [ $? -eq 64 ] || exit 1
+  atomic_state_append_section "" "## H" x 2>/dev/null; [ $? -eq 64 ] || exit 1
+  atomic_state_append_list_item "" k i 2>/dev/null; [ $? -eq 64 ] || exit 1
+  atomic_state_append "" </dev/null 2>/dev/null; [ $? -eq 64 ] || exit 1 ) || bad=1
+if [ -z "$bad" ]; then
+  pass "main routing — an empty target is still rc 64 on all seven helpers"
+else
+  fail "main routing — an empty target did not return 64 everywhere"
+fi
+
 # --- Scale -----------------------------------------------------------------
 
 # The editors were quadratic: 21 s for one 200 KB replacement, past the default
@@ -1446,7 +1500,7 @@ echo "Tests failed: $TESTS_FAILED"
 
 # An expected total: deleting a case would otherwise report a smaller green run.
 # Update this number in the same commit that adds or removes a case.
-EXPECTED_TESTS=102
+EXPECTED_TESTS=106
 if [ "$TESTS_RUN" -ne "$EXPECTED_TESTS" ]; then
   echo "FAIL: expected $EXPECTED_TESTS assertions, ran $TESTS_RUN — a case was added or dropped without updating EXPECTED_TESTS" >&2
   exit 1

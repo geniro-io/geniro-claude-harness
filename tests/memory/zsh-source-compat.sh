@@ -323,6 +323,28 @@ for shell in zsh bash; do
   fi
 done
 
+# --- 8. `set -e` must not turn a failing git into /.geniro: non-git dir, bare
+#        hub root, standalone bare repo. Relative writes land under cwd's root, never /.
+ng="$(mktemp -d "$TMPDIR_BASE/nogit.XXXXXXXXXX")"
+hub="$(mktemp -d "$TMPDIR_BASE/hub.XXXXXXXXXX")"
+git init -q --bare "$hub/.bare"
+printf 'gitdir: ./.bare\n' > "$hub/.git"
+sb="$(mktemp -d "$TMPDIR_BASE/sbare.XXXXXXXXXX")"
+git init -q --bare "$sb"
+for shell in zsh bash; do
+  for d in "$ng" "$hub" "$sb"; do
+    out=$(cd "$d" && "$shell" -c "set -e; source '$REPO_ROOT/lib/atomic-state-write.sh'; source '$REPO_ROOT/lib/unit-dir.sh'; r=\$(_geniro_repo_root); echo \"root=\$r\"; echo \"sd=\$(_geniro_state_dir debug br)\"; echo hi | atomic_state_write .geniro/state/x.md; echo rc=\$?" 2>&1)
+    root=$(cd "$d" && pwd -P)
+    if printf '%s' "$out" | grep -q "rc=0" && ! printf '%s' "$out" | grep -q "root=/$" \
+       && ! printf '%s' "$out" | grep -q "sd=/\.geniro" && ! printf '%s' "$out" | grep -q "mkdir /\.geniro" \
+       && [ -n "$(find "$d" -path '*/.geniro/state/x.md' 2>/dev/null)" ]; then
+      pass "$shell set -e: relative write works in $(basename "$d")"
+    else
+      fail "$shell set -e: relative write broke in $(basename "$d") (out='$out' root=$root)"
+    fi
+  done
+done
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

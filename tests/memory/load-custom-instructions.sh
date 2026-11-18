@@ -5,10 +5,8 @@
 # never the file content.
 #
 # Pins: the load set per tier (pipeline = four files in order, rules-only = two);
-# checkout-first resolution (the git top level, so a subdirectory of a linked
-# worktree finds that worktree's own files) with a per-file fallback to the
-# primary worktree, and the plain form when cwd is a subdirectory of the main
-# checkout; output that stays small whatever the file sizes; an external
+# main-checkout-only resolution (a linked worktree's own copies are never read),
+# and the plain form when cwd is in the main checkout; output that stays small whatever the file sizes; an external
 # instructions dir that overrides the repo
 # entirely (no merge, GENIRO_INSTRUCTIONS_DIR over the plugin option, tilde
 # expanded, a relative path made absolute); a configured-but-missing external dir
@@ -197,28 +195,28 @@ cp -R "$PROJ/.geniro" "$MAIN/.geniro"
 M="$MAIN/.geniro/instructions"
 WT="$TMPDIR_BASE/main-wt"
 run_loader "$WT" debug pipeline
-expect_spine "Loaded global.md from primary worktree (2 rules, 1 constraint, 2 data sources).
-Loaded memory.md from primary worktree (no memory backend declared).
-Loaded debug.md from primary worktree (1 rule, 0 constraints, 1 additional step: After ship).
-Loaded code-style.md from primary worktree (3 rules, 2 constraints).
+expect_spine "Loaded global.md (2 rules, 1 constraint, 2 data sources).
+Loaded memory.md (no memory backend declared).
+Loaded debug.md (1 rule, 0 constraints, 1 additional step: After ship).
+Loaded code-style.md (3 rules, 2 constraints).
 Read: $M/global.md
 Read: $M/memory.md
 Read: $M/debug.md
 Read: $M/code-style.md" \
-  "linked worktree with files only in the main checkout: every file loads from the primary worktree"
+  "linked worktree with files only in the main checkout: every file loads from the main checkout"
 
-# cwd-first, per file: a copy in the linked worktree wins over the main checkout's.
+# Main only: a tracked copy in the linked worktree is ignored in favour of the main checkout's.
 mk "$WT" global.md <<'EOF'
 ## Rules
 - Branch-local rule
 EOF
 run_loader "$WT" debug rules-only
-expect_spine "Loaded global.md (1 rule, 0 constraints).
-Loaded memory.md from primary worktree (no memory backend declared).
-Read: $WT/.geniro/instructions/global.md
+expect_spine "Loaded global.md (2 rules, 1 constraint, 2 data sources).
+Loaded memory.md (no memory backend declared).
+Read: $M/global.md
 Read: $M/memory.md" \
-  "linked worktree: a cwd copy wins for its file, the rest fall back per file"
-expect_not_in_out "Read: $M/global.md" "linked worktree: the main checkout's copy of a shadowed file is not listed"
+  "linked worktree: the main checkout's copy is used even when the worktree has its own"
+expect_not_in_out "Read: $WT/.geniro/instructions/global.md" "linked worktree: the worktree's own copy is not listed"
 
 # A subdirectory of the main checkout resolves the main checkout's own files: the plain form.
 mkdir -p "$MAIN/src/deep"
@@ -231,31 +229,28 @@ Read: $M/global.md
 Read: $M/memory.md
 Read: $M/debug.md
 Read: $M/code-style.md" \
-  "subdirectory of the main checkout: the main checkout's own files carry no from-primary-worktree label"
+  "subdirectory of the main checkout: the main checkout's own files load"
 
-# A subdirectory of a linked worktree still reaches the main checkout's files, labelled.
+# A subdirectory of a linked worktree still reaches the main checkout's files.
 mkdir -p "$WT/src"
 run_loader "$WT/src" debug rules-only
-expect_in_out "Loaded memory.md from primary worktree (no memory backend declared)." \
-  "subdirectory of a linked worktree: the main checkout's file keeps the from-primary-worktree label"
+expect_in_out "Loaded memory.md (no memory backend declared)." \
+  "subdirectory of a linked worktree: the main checkout's file is loaded"
 
-# A subdirectory of a linked worktree looks in that worktree's root first: its own files load in
-# the plain form, a shadowed file wins over the main checkout's copy, and a file only the worktree has is found.
+# A subdirectory of a linked worktree also reads main only; a file only the worktree has is not found.
 mk "$WT" wtonly.md <<'EOF'
 ## Rules
 - Worktree-only rule
 EOF
 run_loader "$WT/src" wtonly pipeline
-expect_spine "Loaded global.md (1 rule, 0 constraints).
-Loaded memory.md from primary worktree (no memory backend declared).
-Loaded wtonly.md (1 rule, 0 constraints).
-Loaded code-style.md from primary worktree (3 rules, 2 constraints).
-Read: $WT/.geniro/instructions/global.md
+expect_spine "Loaded global.md (2 rules, 1 constraint, 2 data sources).
+Loaded memory.md (no memory backend declared).
+No wtonly.md found — skipping.
+Loaded code-style.md (3 rules, 2 constraints).
+Read: $M/global.md
 Read: $M/memory.md
-Read: $WT/.geniro/instructions/wtonly.md
 Read: $M/code-style.md" \
-  "subdirectory of a linked worktree: the worktree root's files load in the plain form, the rest fall back per file"
-expect_not_in_out "Read: $M/global.md" "subdirectory of a linked worktree: the main checkout's copy of a shadowed file is not listed"
+  "subdirectory of a linked worktree: every file comes from the main checkout, worktree-only files are skipped"
 
 # --- 5. External instructions dir: flat layout, overrides the repo, no merge. ---
 EXT="$TMPDIR_BASE/ext"
@@ -387,8 +382,8 @@ mk "$MAIN" memory.md <<'EOF'
   mode: replace
 EOF
 run_loader "$WT" debug rules-only
-expect_in_out "Loaded memory.md from primary worktree (memory backend: learnings → replace)." \
-  "memory.md from the primary worktree keeps the memory form"
+expect_in_out "Loaded memory.md (memory backend: learnings → replace)." \
+  "memory.md from the main checkout keeps the memory form"
 
 printf '## Memory Backend\n- layer: learnings\n  mode: mirror\n' > "$EXT/memory.md"
 run_loader "$PROJ" debug rules-only GENIRO_INSTRUCTIONS_DIR="$EXT"

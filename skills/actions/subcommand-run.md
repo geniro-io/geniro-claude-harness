@@ -8,7 +8,7 @@ Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Ph
 
 ### Phase 4.1: Resolve, read, parse
 
-Resolve the target via `${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md` §Target resolution — it handles the exact-slug, free-text and main-worktree-fallback cases and returns `<resolved-path>` / `<resolved-slug>` / `<source>`.
+Resolve the target via `${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md` §Target resolution — it handles the exact-slug and free-text cases and returns `<resolved-path>` / `<resolved-slug>`.
 
 Read `<resolved-path>`. Parse frontmatter (`description`, `risk_class`, `model`, `external-send`, `argument-hint`, `created`). Hold body steps in memory for Phase 4.3.
 
@@ -29,7 +29,7 @@ Follow the action body's numbered steps directly, inline in the orchestrator (th
 
 One such trigger per run at most — a second prompt gets less attention than the first, not more — and it is declaration-relative: what the action names versus what the run touched. The count is reported, never the trigger; no number of edits fires this on its own.
 
-**Persistent-path write routing.** When an action step writes to `.geniro/instructions/`, `.geniro/actions/`, or `.geniro/workflow/` via a relative path, resolve the target against `$PRIMARY_ROOT`, recomputed via the Mode A snippet inside the Bash call performing the write — these three families are persistent user content that must survive worktree removal, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`. Task-local writes (`.geniro/state/`) stay cwd-relative; task-dirs sit under `<PLANNING_ROOT>`. State-path writes still route through the atomic helpers.
+**`.geniro/` write routing.** When an action step writes to `.geniro/` via a relative path, resolve the target against `$PRIMARY_ROOT`, recomputed via the Mode A snippet inside the Bash call performing the write — every `.geniro/` file lives in the main checkout so it survives worktree removal, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`. State-path writes still route through the atomic helpers.
 
 If a step has a `[AUQ]` or `## Confirm:` annotation, fire AUQ at that step. On non-zero exit or tool failure → halt with the step number captured, then go to Phase 4.4 and print its wrap-up summary — the failed step number in place of the steps-run count, everything already changed still listed under `Files changed` / `External calls`. This is the terminal the user most needs the summary at: it names what the action already mutated before it stopped. Skip the L2 emit; a failed run is not the successful-external-send case that gates it.
 

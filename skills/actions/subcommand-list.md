@@ -8,7 +8,7 @@ Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Ph
 
 ### Step 1 — Scan directory
 
-Build the registry index per `${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md` §Target resolution Step 1 (dual-glob local + main-worktree, deduped by absolute path, `local` wins, each row tagged `local` / `main-worktree`). Without this, list mode misses actions authored in the main worktree but absent from the current linked worktree.
+Build the registry index per `${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md` §Target resolution Step 1 (the main checkout's `.geniro/actions/`).
 
 ### Step 2 — Present results
 
@@ -21,16 +21,16 @@ Run `/geniro:actions create <name>` to scaffold your first action,
 e.g. `/geniro:actions create slack-release-ping`.
 ```
 
-Otherwise, for each `.md` file, Read the frontmatter and extract `name`, `description`, `risk_class`, `created`. Tag each row with its `<source>` (`local` / `main-worktree`) from Step 1. Present a markdown table:
+Otherwise, for each `.md` file, Read the frontmatter and extract `name`, `description`, `risk_class`, `created`. Present a markdown table:
 
 ```
 ## Custom Actions
 
-| Name | Description | Risk | Created | Source |
-|------|-------------|------|---------|--------|
-| daily-recap | Use when wrapping the day's commits + tests | low | 2026-04-12 | local |
-| commit-and-pr-summary | Use when finalizing a PR before push | medium | 2026-04-18 | local |
-| slack-release-ping | Use when posting a release note to #releases | high | 2026-04-15 | main-worktree |
+| Name | Description | Risk | Created |
+|------|-------------|------|---------|
+| daily-recap | Use when wrapping the day's commits + tests | low | 2026-04-12 |
+| commit-and-pr-summary | Use when finalizing a PR before push | medium | 2026-04-18 |
+| slack-release-ping | Use when posting a release note to #releases | high | 2026-04-15 |
 ```
 
 Close with: "Run with `/geniro:actions run <name>`."

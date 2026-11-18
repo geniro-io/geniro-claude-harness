@@ -15,7 +15,7 @@ One row per tool. Phase 0 enumerates the path column with Glob to build the run'
 | JetBrains Junie | `.junie/guidelines.md` | Loaded whole |
 | Zed | `.rules` | Loaded whole |
 | Amazon Q | `.amazonq/rules/*.md` | Loaded whole |
-| Geniro | `.geniro/instructions/*.md` | In scope for every dimension; per-file structural lint alone is owned by `/geniro:instructions validate` — route structural findings there instead of duplicating that lint |
+| Geniro | `.geniro/instructions/*.md` | Read from the main checkout (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A), never cwd. In scope for every dimension; per-file structural lint alone is owned by `/geniro:instructions validate` — route structural findings there instead of duplicating that lint |
 
 **Scope boundaries.**
 - User-global files (`~/.claude/CLAUDE.md`, per-user Cursor or Copilot settings) live outside the repo and are out of scope.

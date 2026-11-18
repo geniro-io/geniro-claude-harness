@@ -35,7 +35,7 @@ Bias toward **few, high-value candidates**. A task that taught nothing durable r
 The orchestrating skill passes you:
 
 1. **The change** — session extracts: the work-bearing moments a session recorded (commands run, corrections applied, gotchas hit), drawn from past transcripts or from the session running now. The extracts may center on a diff summary + changed-file list or on kept findings + the diff they were raised against — mine what actually happened rather than assuming a single diff shape.
-2. **Project context** — stack + conventions, and the paths to scan for existing rules: `CLAUDE.md` (or the AGENTS.md it imports), `.claude/rules/*`, `.geniro/instructions/*`. Read these yourself to dedupe, together with the project's automated checks (lint config, CI workflows, pre-commit config, package scripts / build-tool check targets), which you locate yourself.
+2. **Project context** — stack + conventions, and the paths to scan for existing rules: `CLAUDE.md` (or the AGENTS.md it imports), `.claude/rules/*`, `.geniro/instructions/*` (an absolute main-checkout path). Read these yourself to dedupe, together with the project's automated checks (lint config, CI workflows, pre-commit config, package scripts / build-tool check targets), which you locate yourself.
 3. **Prior declines** (optional) — a list of `user_rejected_suggestion` summaries for this scope, pre-inlined by the orchestrator. When absent, you may re-query the local file yourself, using the exact call in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Spawn slots.
 4. **Writing guide** — the rule-writing principles; read them before Step 2.
 
