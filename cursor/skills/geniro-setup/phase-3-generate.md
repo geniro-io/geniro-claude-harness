@@ -64,9 +64,9 @@ Section merge runs **orchestrator-inline** — no subagent spawn. The four merge
 Recompute `PRIMARY_ROOT` via the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` inside this same Bash call — Mode A owns the recompute-per-call rule.
 
 ```bash
-# workflow/ + instructions/ are cross-session → primary worktree. planning/ is task-local (cwd).
-# knowledge/ is cross-session too, but its writers self-route to the repo root via lib/repo-root.sh — this cwd mkdir is only a convenience.
-mkdir -p "$PRIMARY_ROOT"/.geniro/workflow "$PRIMARY_ROOT"/.geniro/instructions .geniro/planning .geniro/knowledge
+# workflow/ + instructions/ are cross-session → primary worktree. planning/ task-dirs follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Path roots.
+# knowledge/ writers self-route to the repo root via lib/repo-root.sh — this cwd mkdir is a convenience.
+mkdir -p "$PRIMARY_ROOT"/.geniro/workflow "$PRIMARY_ROOT"/.geniro/instructions "$PRIMARY_ROOT"/.geniro/planning .geniro/knowledge
 ```
 
 #### `.gitignore` re-include procedure

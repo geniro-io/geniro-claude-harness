@@ -51,6 +51,11 @@ seed_task_dir() {
   printf 'milestone\n' > "$d/milestone-1.md"
   printf 'png\n'       > "$d/visual-before.png"
   printf 'png\n'       > "$d/visual-after.png"
+  printf 'review\n'    > "$d/review.md"
+  printf 'debug\n'     > "$d/debug.md"
+  printf 'debug\n'     > "$d/debug-adversarial.md"
+  printf 'brief\n'     > "$d/review-brief-2026-01-01.md"
+  printf 'answer\n'    > "$d/investigate-some-topic.md"
 }
 
 # Test 1: every documented transient is removed.
@@ -71,7 +76,9 @@ fi
 
 # Test 2: durable artifacts survive.
 if [ -f "$t1/spec.md" ] && [ -f "$t1/state.md" ] && [ -f "$t1/plan-v1.md" ] && [ -f "$t1/milestone-1.md" ] \
-   && [ -f "$t1/visual-before.png" ] && [ -f "$t1/visual-after.png" ]; then
+   && [ -f "$t1/visual-before.png" ] && [ -f "$t1/visual-after.png" ] \
+   && [ -f "$t1/review.md" ] && [ -f "$t1/debug.md" ] && [ -f "$t1/debug-adversarial.md" ] \
+   && [ -f "$t1/review-brief-2026-01-01.md" ] && [ -f "$t1/investigate-some-topic.md" ]; then
   pass "clean_task_transients — preserves T1.5 durables (spec/state/plan/milestone/visual)"
 else
   fail "clean_task_transients — deleted a durable artifact (dir now: $(ls "$t1"))"

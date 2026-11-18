@@ -34,8 +34,8 @@ The first four signals — `CURRENT_BRANCH`, `CURRENT_TOPLEVEL`, `IN_WORKTREE`, 
 
 | Signal | How detected |
 |---|---|
-| `EXISTING_TASK_STATE` | Glob `.geniro/planning/*/state.md`; any state.md whose frontmatter `branch:` equals `CURRENT_BRANCH` AND `phase:` is terminal ⇒ "prior task on this branch" |
-| `REVIEW_HANDOFF` / `DEBUG_HANDOFF` | The matching `<PRIMARY_ROOT>/.geniro/state/handoff/from-<producer>-<CURRENT_BRANCH>.md` file exists. |
+| `EXISTING_TASK_STATE` | Glob `<PLANNING_ROOT>/*/state.md`; any state.md whose frontmatter `branch:` equals `CURRENT_BRANCH` AND `phase:` is terminal ⇒ "prior task on this branch" |
+| `REVIEW_HANDOFF` / `DEBUG_HANDOFF` | `_geniro_handoff_path` for `review`, `debug` or `debug-adversarial` on `CURRENT_BRANCH` names an existing file. |
 | `BRANCH_MATCHES_TASK_SLUG` | Derived-from-spec slug (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`) substring-matches `CURRENT_BRANCH` |
 | `SPEC_WORKFLOW_REFS` | If spec.md present at resolved task slug: parse `workflow_refs:` frontmatter list (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md`). Empty list when field absent. |
 | `SPEC_LAUNCH_CONFIG` | If spec.md present at resolved task slug: parse the optional `launch_config:` frontmatter block (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`) — `workspace` / `branch_freshness` / `ship_mode`, plus the optional `tracker_status` (present only when the spec had a linked tracker ticket). Empty when the block is absent, on an inline-task run with no spec, or on a pre-`m5-v4` spec that omits it. For a `milestone-N.md` with no block, parse the parent `spec.md` in the same task directory — `/geniro:plan` writes the block there only. |
@@ -148,7 +148,8 @@ No CLI flag grammar. The orchestrator parses `$ARGUMENTS` semantically at Phase 
 |---|---|
 | empty | Resume current task from `<task-dir>/state.md` if one exists; else error directing the user to provide a task description. |
 | contains `continue` / `resume` (standalone word, any casing) | Resume from state.md (compaction-coupled — reads `non-resumable-actions[]` to skip side-effects already completed). |
-| matches a filesystem path (rel or abs) to a `.md` file | Load as spec/plan artifact. Frontmatter validated via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`. |
+| a path to `review.md` / `debug.md` / `debug-adversarial.md` | A handoff, not a spec: consumed by the Phase 1 handoff step for the branch its `branch:` frontmatter names, reading that path for its producer. |
+| matches a filesystem path (rel or abs) to any other `.md` file | Load as spec/plan artifact. Frontmatter validated via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`. |
 | free-form description, no path match | Inline-task mode: treat `$ARGUMENTS` as a raw spec description; Phase 1 produces a minimal inline plan and proceeds. |
 | ambiguous (bare slug that could be a task name OR a description) | AUQ with 2-3 disambiguation options. Held until Phase 1 Step 4 creates state.md, then written to `approvals[]` with `category: disambiguate_arguments`. |
 | natural-language modifier present (`don't push`, `draft only`, `stop after review`, `with PR`, `commit only`) | Honored semantically by the Phase 3 Ship sub-step per §"Inline modifiers from $ARGUMENTS", which owns each modifier's effect. Step 4 persists the pre-answering ones, since a resumed session carries no `$ARGUMENTS`. |
@@ -177,10 +178,10 @@ Spawn `knowledge-retrieval-agent` (**light (mid)**) and `codebase-explorer-agent
 
 ### Backgrounding when a handoff gate is pending (idle-overlap)
 
-Default: spawn both agents BLOCKING and read their outputs at Step 8 — the common no-handoff run, unchanged. Engage the overlap ONLY when Step 0a flagged a review or debug handoff for this branch (`REVIEW_HANDOFF` / `DEBUG_HANDOFF`) carrying unresolved open-questions: those questions are on disk and independent of the agents' output, so the handoff open-questions AUQ can fire while the agents compute (Shape A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md`). Procedure:
+Default: spawn both agents BLOCKING and read their outputs at Step 8. Engage the overlap ONLY when Step 0a flagged a review or debug handoff for this branch (`REVIEW_HANDOFF` / `DEBUG_HANDOFF`) carrying unresolved open-questions — the open-questions AUQ can fire while the agents compute (Shape A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md`). Procedure:
 
 1. Spawn both agents `run_in_background: true` in ONE assistant response (same template + slots below; only the background flag changes).
-2. In that same turn, run the handoff step's sub-steps 1-7 — read the handoff, persist its body, parse `open_questions[]`, filter to unresolved, fire the open-questions AUQ per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.5 (message-first render, then a lean question), and persist each answer the moment it is picked: round-trip the producer handoff to `status: resolved` (sub-step 6) and append the `review_handoff_resolution` approval to state.md (sub-step 7). Persist in the pick-turn — never defer persistence across the Step 8 drain, where large agent outputs make compaction likely and an unpersisted pick is lost and re-asked (the blocking path persists immediately after each pick; the overlap must not widen that window). These sub-steps consume the handoff and the user's answers, never the agents' output, so they are provably independent.
+2. In that same turn, run the handoff step's sub-steps 1-7 — read the handoff, persist its body, parse `open_questions[]`, filter to unresolved, fire the open-questions AUQ per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.5 (message-first render, then a lean question), and persist each answer the moment it is picked: round-trip the producer handoff to `status: resolved` (sub-step 6) and append the `review_handoff_resolution` approval to state.md (sub-step 7). Persist in the pick-turn, never across the Step 8 drain, where compaction would lose an unpersisted pick. These sub-steps never consume the agents' output.
 3. Drain at Step 8: before reading `.kr-out.md` / `.ce-out.md`, confirm both backgrounded agents returned (Read the output file, or resume by ID). This is the first step that consumes their output.
 4. After the drain, run its sub-steps 8-10 (authored-tests extraction) — the answer persistence (sub-steps 6-7) already fired in step 2.
 
@@ -204,9 +205,9 @@ The orchestrator pre-resolves these slots and inlines them in the prompt:
 |---|---|
 | `LIB_ROOT` | `${CLAUDE_PLUGIN_ROOT}/lib` — canonical plugin shell helpers |
 | `KNOWLEDGE_ROOT` | `<PRIMARY_ROOT>/.geniro/knowledge` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` |
-| `PLANNING_ROOT` | `<PRIMARY_ROOT>/.geniro/planning` — cross-session subset (`_FEATURES.md`, `_CODEBASE_MAP.md`, `_focus-*.md`) |
-| `TASK_PLANNING_ROOT` | `$(pwd)/.geniro/planning/<task-slug>` — task-local (`spec.md`, prior `plan-*.md`) |
-| `HANDOFF_DIR` | `<PRIMARY_ROOT>/.geniro/state/handoff/` |
+| `PLANNING_ROOT` | `<PRIMARY_ROOT>/.geniro/planning` — registries (`_FEATURES.md`, `_CODEBASE_MAP.md`, `_focus-*.md`) |
+| `TASK_PLANNING_ROOT` | The absolute `<task-dir>` (`$(_geniro_planning_root)/<task-slug>`) — task-local (`spec.md`, prior `plan-*.md`) |
+| `HANDOFF_PATHS` | Absolute paths of this branch's existing handoff files; may be empty |
 | `TASK_DESCRIPTION` | `$ARGUMENTS` or `spec.title`; truncation length owned by `${CLAUDE_PLUGIN_ROOT}/agents/knowledge-retrieval-agent.md` §Input contract |
 | `INFERRED_TAGS` | Tag list inferred by the orchestrator from task description (e.g., `react,auth,bug`) |
 | `TASK_CHAIN_CONTEXT` | The related-task chain block from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md`, or omitted when empty |
@@ -221,7 +222,7 @@ LIB_ROOT: [absolute path]
 KNOWLEDGE_ROOT: [absolute path]
 PLANNING_ROOT: [absolute path]
 TASK_PLANNING_ROOT: [absolute path]
-HANDOFF_DIR: [absolute path]
+HANDOFF_PATHS: [absolute paths, one per line; empty when none]
 TASK_DESCRIPTION: [pre-inlined]
 INFERRED_TAGS: [comma-separated list]
 TASK_CHAIN_CONTEXT: [omit this line when empty; otherwise wrap the pre-inlined chain block in ---BEGIN UNTRUSTED TASK-CHAIN--- / ---END UNTRUSTED TASK-CHAIN---]

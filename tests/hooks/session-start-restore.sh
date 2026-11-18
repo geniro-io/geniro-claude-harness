@@ -2023,6 +2023,37 @@ else
   fail "archiver rc>=2 not surfaced — sm='$sm'"
 fi
 
+# Planning root: a state.md in the PRIMARY checkout's planning dir is restored
+# from a linked worktree on the same branch (.geniro/ gitignored).
+primary="$TMPDIR_BASE/plroot-primary-$$"
+mkdir -p "$primary" && cd "$primary" && git init -q -b main \
+  && printf '.geniro/\n' > .gitignore && git add .gitignore \
+  && git -c user.email=t@t -c user.name=t commit -q -m init || exit 1
+linked="$TMPDIR_BASE/plroot-linked-$$"
+git worktree add -q "$linked" -b feature/plroot 2>/dev/null || exit 1
+mkdir -p .geniro/planning/plroot-task
+cat > .geniro/planning/plroot-task/state.md <<'EOF'
+---
+tier: T1
+producer: implement
+schema-version: 1
+branch: feature/plroot
+timestamp: 2026-05-19T15:00:00Z
+phase: implement
+status: in-progress
+non-resumable-actions: []
+---
+
+body
+EOF
+out=$(run_hook startup "$linked")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+if grep -q "Active task detected" <<<"$ac" && grep -q "plroot-task/state.md" <<<"$ac"; then
+  pass "planning root: primary checkout's state.md restored from a linked worktree"
+else
+  fail "planning root: primary state.md not restored from linked worktree"
+fi
+
 # ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------

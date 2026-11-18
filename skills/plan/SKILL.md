@@ -21,7 +21,7 @@ Turn a vague idea into an approved `spec.md` that `/geniro:implement` consumes d
 **Runtime portability.** If Codex truncated this file, read it in full from its path first. `${CLAUDE_PLUGIN_ROOT}` is a placeholder Claude Code substitutes into file references, not a shell export — it reads empty in Bash under every host, so an empty probe proves nothing (`CLAUDECODE` marks Claude Code). Resolve the root from the first rung that holds: the ancestor of this file's real path (symlinks followed) containing `.claude-plugin/plugin.json`; a copy of the referenced file beside this one (the Cursor build); a plugin checkout in the workspace. The run's first Bash call prints this file's real directory and checks the rungs against it; echo that output verbatim before anything else (a resolved ladder is bookkeeping: add a degraded-run notice only for a rung that failed), then substitute the resolved root everywhere and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. A path the output does not show did not resolve. Before deciding a step cannot run here, read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` — it substitutes mechanisms, not steps, and routes a host with no one to ask to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/non-interactive-host.md`. **When no rung resolves, the files are missing but the contract is not:** name what is unavailable in your first message, run every phase and gate this skill declares, never let project rules stand in for its decision gates, and take no outward-facing action (ready PR, merge, force-push, protected-branch push, posted comment, tracker transition) without an explicit answer.
 
 **Output:**
-- spec.md at `.geniro/planning/<task-slug>/spec.md` with the fixed section schema (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`), goal-state frontmatter, and all three design-doc detection markers per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`.
+- spec.md at `<PLANNING_ROOT>/<task-slug>/spec.md` with the fixed section schema (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`), goal-state frontmatter, and all three design-doc detection markers per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`.
 - For Big tasks: sibling `milestone-N.md` files.
 - state.md at the same task-dir tracking phase progress + AUQ answers.
 - `git commit` — fires at Phase 8 post-approve, NOT Phase 6: spec.md (+ milestones) plus the glossary entries and ADR files the Phase 3 grill wrote. When the project ignores `.geniro/planning/` (the default `.gitignore` does), the spec stays on disk uncommitted and only those docs are committed.
@@ -129,7 +129,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 ## State persistence
 
-**Task directory**: `.geniro/planning/<task-slug>/`
+**Task directory**: `<PLANNING_ROOT>/<task-slug>/`
 
 **state.md** — frontmatter schema and body template are in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1; Phase 0 §0.3 creates it.
 
@@ -171,7 +171,7 @@ Reads and `AskUserQuestion` are open in every phase; writes are limited to those
 
 ## Task execution entry
 
-0. **Check for existing state.md.** List `.geniro/planning/*/state.md` for a file matching the resolved task slug:
+0. **Check for existing state.md.** List `<PLANNING_ROOT>/*/state.md` for a file matching the resolved task slug:
 - **No state.md** → fresh run. Proceed to Phase 0.
 - **state.md exists, phase in non-terminal set** → resume from `phase:` value, re-Reading the spine and that phase's steps file first (the Compaction paragraph above). The SessionStart hook re-injects task context, not the loop's steps.
 - **state.md exists, phase in terminal set** (`done` / `aborted`) → task complete. Surface terminal state to user; if $ARGUMENTS carries a new topic, derive a new slug, fresh run.

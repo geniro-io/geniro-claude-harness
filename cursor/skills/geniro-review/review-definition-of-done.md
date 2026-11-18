@@ -14,7 +14,7 @@ The run-completion checklist (spine: `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.
 - [ ] The needs-your-decision gate fired for every such finding at any severity, all resolved or wontfix BEFORE the handoff is offered or anything is posted (§7.0 Pre-Post guard).
 - [ ] `phase:` was stamped via `atomic_state_set_field` on ENTRY to each phase (invariant S3).
 - [ ] All three pre-pass checks (lint / schema / secret) have a recorded outcome — `findings`, `clean`, or `error` — in `mechanical_prepass_attempted`, confirmed by §4.0a.
-- [ ] The handoff was written to `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write`, with structured `open_questions[]`.
+- [ ] The handoff was written to `$(_geniro_handoff_target review <branch>)` via `atomic_state_write`, with structured `open_questions[]`.
 - [ ] `report_status` flipped `draft→final` once the decision gates cleared, a clean review included; on a Post, `[POSTED-TO-PR]` markers persisted.
 - [ ] The Action gate fired (always-WAIT) with its pick in `approvals[]`; the chained include-deferred gate fired on the `/geniro:implement findings` pick when set-aside minor findings existed; the round-N gate fired past the round threshold (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7 step 4).
 - [ ] The final chat message states the verdict (kept-finding counts by severity, or the clean-pass affirmation) and the handoff's ABSOLUTE path; the repo-relative form alone, or either half missing, fails.

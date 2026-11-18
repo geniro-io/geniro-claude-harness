@@ -772,7 +772,7 @@ validate_plan_spec() {
 }
 
 # Direct CLI invocation, for the Phase 7 call site and the test suite:
-#   validate-plan-spec.sh .geniro/planning/<slug>/spec.md
+#   validate-plan-spec.sh <task-dir>/spec.md
 # bash: executed means BASH_SOURCE[0] == $0. zsh: sourcing appends ":file" to
 # ZSH_EVAL_CONTEXT; direct execution leaves it "toplevel" (the bash test would
 # mis-read both zsh cases as sourced, since BASH_SOURCE is empty there — and an

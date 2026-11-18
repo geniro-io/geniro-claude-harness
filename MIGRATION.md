@@ -10,6 +10,82 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v5.0.0
 
+### Review and debug handoffs, the review brief and task-dirs now live together in one unit dir
+
+Every human-facing artifact of one unit of work now sits in one folder, `<PLANNING_ROOT>/<unit>/`, next to `spec.md` and `state.md`. `<PLANNING_ROOT>` is the current worktree's `.geniro/planning` unless git ignores that path, else the main checkout's. Moved: the `/geniro:review` handoff to `<unit>/review.md`, the `/geniro:debug` handoffs to `<unit>/debug.md` and `<unit>/debug-adversarial.md`, the review brief to `<unit>/review-brief-<date>.md`; `/geniro:investigate` now saves its answer as `<unit>/investigate-<topic-slug>.md`. Task-dirs created by `/geniro:plan` and `/geniro:implement` resolve under `<PLANNING_ROOT>` instead of the current directory, so a task started in a linked worktree no longer loses its spec and state when the worktree is removed.
+
+Old files keep working: the skills still read `.geniro/state/handoff/from-{review,debug,debug-adversarial}-<branch>.md` when no handoff exists in the unit dir. New runs write only the new paths, so an old handoff you have not moved goes stale once a new run writes beside it.
+
+**Action required:** Move the old handoffs and briefs into their unit dir; the auto-fix does it. It moves nothing when `.geniro/planning` is not git-ignored here (the unit dir would then be this worktree's tree); move them yourself into the right branch's `<unit>/`. A brief moves only when its unit dir is unambiguous; others stay and the loop prints why. Task-dirs inside linked worktrees (`.geniro/planning/*/state.md` under a `git worktree list` path other than the main checkout) are not moved: finish the task, or copy the dir into `<PLANNING_ROOT>` yourself once no session is running it.
+
+**Auto-detect:**
+
+```bash
+root="$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
+find "${root:-.}/.geniro/state/handoff" -maxdepth 1 \( -name 'from-review-*.md' -o -name 'from-debug-*.md' \) 2>/dev/null
+find "${root:-.}/.geniro/state/review" -path '*/.geniro/state/review/brief-*.md' 2>/dev/null
+```
+
+**Auto-fix:**
+
+```bash
+source "${PLUGIN_PATH:-$CLAUDE_PLUGIN_ROOT}/lib/unit-dir.sh" || exit 1
+root="$(_geniro_repo_root)"
+top="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [ -n "$top" ] && ! git -C "$top" check-ignore -q .geniro/planning/_probe/state.md; then
+  echo "left all: .geniro/planning is not git-ignored here; move the files into each branch's unit dir by hand"
+  exit 0
+fi
+known=""  # slugs whose real branch a legacy handoff supplied in this run
+move_to_unit() { # <file> <branch> <target name>
+  unit="$(_geniro_unit_dir "$2")"
+  [ -n "$unit" ] || { echo "left $1: no unit dir for '$2'"; return; }
+  if [ -e "$unit/$3" ]; then echo "left $1: $unit/$3 already exists"; return; fi
+  mkdir -p "$unit" && mv "$1" "$unit/$3" && echo "moved $1 -> $unit/$3"
+}
+for f in "$root"/.geniro/state/handoff/from-*.md; do
+  [ -f "$f" ] || continue
+  case "$(basename "$f")" in
+    from-review-*) name=review ;;
+    from-debug-adversarial-*) name=debug-adversarial ;;
+    from-debug-*) name=debug ;;
+    *) continue ;;
+  esac
+  branch="$(awk 'NR==1 && $0 != "---" {exit} NR>1 && /^---/ {exit} /^branch:/ {sub(/^branch:[ \t]*/, ""); print; exit}' "$f" | tr -d "\"'")"
+  [ -n "$branch" ] || { echo "left $f: no branch: in frontmatter"; continue; }
+  known="$known
+$(_geniro_branch_slug "$branch")$(printf '\t')$branch"
+  move_to_unit "$f" "$branch" "$name.md"
+done
+rdir="$root/.geniro/state/review"
+while IFS= read -r f; do
+  [ -f "$f" ] || continue
+  rel="${f#"$rdir"/}"
+  base="$(basename "$f")"
+  date="$(printf '%s' "$base" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}\.md$' | sed 's/\.md$//')"
+  [ -n "$date" ] || { echo "left $f: no date in file name"; continue; }
+  slug="${rel#brief-}"; slug="${slug%-$date.md}"
+  case "$rel" in
+    */*) branch="$slug" ;;  # nested: the path is the raw branch name
+    *)
+      branch="$(printf '%s\n' "$known" | awk -F'\t' -v s="$slug" '$1 == s {print $2; exit}')"
+      if [ -n "$branch" ]; then :
+      elif [ -d "$(_geniro_unit_dir "$slug")" ]; then branch="$slug"
+      else echo "left $f: no unit dir or handoff identifies the branch for '$slug'"; continue
+      fi ;;
+  esac
+  move_to_unit "$f" "$branch" "review-brief-$date.md"
+done <<EOF
+$(find "$rdir" -path '*/.geniro/state/review/brief-*.md' -type f 2>/dev/null | sort)
+EOF
+```
+
+Nothing is deleted: a file whose target already exists, or whose branch cannot be read, stays where it is and the loop prints why. A top-level brief carries only the branch slug in its name, so it moves only when an existing unit dir resolves for that exact slug or a handoff moved in the same run names the branch. A brief for a branch containing `/` may sit nested (`brief-feat/x-<date>.md`); its path names the raw branch, so it moves unless its target exists, and the emptied directory stays.
+
+**Severity:** LOW — old handoffs are still read, so nothing breaks; the move only brings an in-flight task's files together.
+
+---
+
 ### `/geniro:setup` names the commands section `## Essential Commands`, not `## Commands`
 
 A `CLAUDE.md` generated by an earlier `/geniro:setup` carries its build, test, and lint commands under `## Commands`. Skills that look the section up (`/geniro:implement` and `/geniro:refactor` resolve the test command, `/geniro:debug` the test framework) cite it as "Essential Commands", so a project still on the old heading gives them nothing to find by name, and the next setup re-run would otherwise add a second section beside it.
@@ -818,12 +894,13 @@ A new read-only `reflection-agent` (with inline equivalents in /plan and /onboar
 
 **Action required:** Delete leftover transient files inside finished task-dirs. These are left by runs that predate the cleanup contract OR by any run that ended without reaching its cleanup (interrupted session, killed terminal) — the detector cannot distinguish file origin, only that the file outlived its run. This entry deliberately doubles as a recurring sweep: it is the system's only channel for catching transients left by interrupted runs, so re-detection on a later update means NEW leftovers appeared since the last sweep, not that the previous fix failed.
 
-Both commands below share one liveness predicate: a transient is a leftover only when its task-dir's `state.md` is missing or terminal (`phase:` done/aborted/routed/failed/escalated/ship-committed-only/self-review-only/debug-handoff/ship-summary-only/adversarial-aborted/verify-summary-only/reverted/adr-documented/map-truncated/present-summary-only, or `status:` done/completed/failed/aborted/routed — mirroring the session-restore hook's full terminal sets in `hooks/session-start-restore.sh`). Transients inside a live task-dir are the working files of an in-flight run, not leftovers — they are never matched, and they become detectable once that task finishes. A status-blind glob here once flagged (and would have deleted) a running `/implement` task's research outputs. `notes.md` is deliberately excluded from this sweep: the name is plausibly user-authored content, so an external sweep deleting it risks data loss — `/geniro:implement`'s own in-run cleanup handles its `notes.md`.
+Both commands below sweep the current checkout's `.geniro/planning` and the main checkout's, and share one liveness predicate: a transient is a leftover only when its task-dir's `state.md` is missing or terminal (`phase:` done/aborted/routed/failed/escalated/ship-committed-only/self-review-only/debug-handoff/ship-summary-only/adversarial-aborted/verify-summary-only/reverted/adr-documented/map-truncated/present-summary-only, or `status:` done/completed/failed/aborted/routed — mirroring the session-restore hook's full terminal sets in `hooks/session-start-restore.sh`). Transients inside a live task-dir are the working files of an in-flight run, not leftovers — they are never matched, and they become detectable once that task finishes. A status-blind glob here once flagged (and would have deleted) a running `/implement` task's research outputs. `notes.md` is deliberately excluded from this sweep: the name is plausibly user-authored content, so an external sweep deleting it risks data loss — `/geniro:implement`'s own in-run cleanup handles its `notes.md`.
 
 **Auto-detect:**
 
 ```bash
-find .geniro/planning -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o -name '.tr-out.md' -o -name '.adversarial-out.md' -o -name '.spec-challenge-out.md' -o -name '.research-*.md' -o -name 'playwright-verify.png' \) -exec sh -c '
+pr="$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"; [ "$pr" = "$(pwd -P)" ] && pr=""
+find .geniro/planning ${pr:+"$pr/.geniro/planning"} -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o -name '.tr-out.md' -o -name '.adversarial-out.md' -o -name '.spec-challenge-out.md' -o -name '.research-*.md' -o -name 'playwright-verify.png' \) -exec sh -c '
   for f do
     s="${f%/*}/state.md"
     if [ ! -f "$s" ] || grep -Eq "^phase:[[:space:]]*(done|aborted|routed|failed|escalated|ship-committed-only|self-review-only|debug-handoff|ship-summary-only|adversarial-aborted|verify-summary-only|reverted|adr-documented|map-truncated|present-summary-only)[[:space:]]*$|^status:[[:space:]]*(done|completed|failed|aborted|routed)[[:space:]]*$" "$s"; then
@@ -835,7 +912,8 @@ find .geniro/planning -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o
 **Auto-fix:**
 
 ```bash
-find .geniro/planning -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o -name '.tr-out.md' -o -name '.adversarial-out.md' -o -name '.spec-challenge-out.md' -o -name '.research-*.md' -o -name 'playwright-verify.png' \) -exec sh -c '
+pr="$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"; [ "$pr" = "$(pwd -P)" ] && pr=""
+find .geniro/planning ${pr:+"$pr/.geniro/planning"} -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o -name '.tr-out.md' -o -name '.adversarial-out.md' -o -name '.spec-challenge-out.md' -o -name '.research-*.md' -o -name 'playwright-verify.png' \) -exec sh -c '
   for f do
     s="${f%/*}/state.md"
     if [ ! -f "$s" ] || grep -Eq "^phase:[[:space:]]*(done|aborted|routed|failed|escalated|ship-committed-only|self-review-only|debug-handoff|ship-summary-only|adversarial-aborted|verify-summary-only|reverted|adr-documented|map-truncated|present-summary-only)[[:space:]]*$|^status:[[:space:]]*(done|completed|failed|aborted|routed)[[:space:]]*$" "$s"; then

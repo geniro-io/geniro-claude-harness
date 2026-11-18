@@ -30,7 +30,7 @@ On a round ≥2 re-run, a finding is `repeat-of-prior-round` when it matches the
 
 ### 5.1 Handoff file write
 
-Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`. `<PRIMARY_ROOT>` resolved per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A.
+Path: `$(_geniro_handoff_target review <branch>)` (source `${CLAUDE_PLUGIN_ROOT}/lib/unit-dir.sh` in the same Bash call).
 
 **Write via `atomic_state_write`** — never a direct Edit/Write, so a reader never sees a half-written handoff.
 
@@ -70,7 +70,7 @@ Full Post drill (§7.0-§7.8) in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-ha
 If Phase 5 re-enters after compaction:
 1. Read state.md `non-resumable-actions[]` — if PR post already completed, skip re-post.
 2. Re-read findings from Phase 3 dedup output (held in context OR re-runs Phase 3 if context lost).
-3. Re-write `from-review-<branch>.md` (overwrite — `atomic_state_write` handles atomicity).
+3. Re-write `$(_geniro_handoff_target review <branch>)` (overwrite — `atomic_state_write` handles atomicity).
 4. The rewrite lands `report_status: draft` again and Phase 6 finalize re-flips it once the decision gates clear, per the write/rewrite discipline in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.6 — so re-entry never leaves a stale `final`.
 
 ---
@@ -87,13 +87,13 @@ Summary of the Phase 6 chain — each gate is its own AUQ, never collapsed; step
 2. **Open-decision gate** — for each kept finding whose state-file `Decision Type:` field is `PRODUCT-DECISION` — judgment calls the reviewer won't resolve for you — render the finding to chat first, then fire one lean AUQ (header `Decision`), per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering. Skipped when none.
 3. **Finalize the report (silent — no question).** Flip the report from `draft` to `final` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3.5. This runs on EVERY pass: gates 1 and 2 are skipped when empty, so a clean review still arrives here at `draft`, and the Action gate's handoff option and the §7.0 public-post guard both refuse a draft. Re-verify the §3.5 invariants, then flip.
 4. **Action gate** — render the wrap-up chat message first (all-decided tracker + one-sentence opener + kept-findings severity digest, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4), then fire `AskQuestion` with the canonical 4 options. Never collapse into chat text ("Want me to apply these now?" / "Should I push?" / "apply the fix now" / "add the test now") — that bypasses the persisted-pick contract and silently drops options the user might want (e.g., Post Draft PR review). The canonical 4 option labels below are an allowlist: substituting an ad-hoc "apply the fix" / "add the test" / "what next?" option (or applying any fix from /geniro:review) is forbidden — fixes route to `/geniro:implement findings`. Option labels (verbatim, do not paraphrase):
-   - `"/geniro:implement findings"` — carries ` (Recommended)` under the severity rule in the `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4 literal block; exits /geniro:review and the model surfaces `/geniro:implement <PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` as the next command (`<PRIMARY_ROOT>` resolved per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.6), noting the handoff carries everything it needs, so run `/clear` first for a fresh context. Its description must disclose that /geniro:implement applies the fixes and asks before committing/pushing — picking it routes the findings, it does not authorize a ship (per the §4 literal description).
+   - `"/geniro:implement findings"` — carries ` (Recommended)` under the severity rule in the `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4 literal block; exits /geniro:review and the model surfaces `/geniro:implement <absolute path of review.md>` as the next command, noting the handoff carries everything it needs, so run `/clear` first for a fresh context. Its description must disclose that /geniro:implement applies the fixes and asks before committing/pushing — picking it routes the findings, it does not authorize a ship (per the §4 literal description).
    - `"Post Draft PR review"` — the one conditional option; its full presence/OMIT rule (including the `post-disposition` exclusions) is in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4 §Post-option presence.
    - `"Continue rounds (re-review)"` — past the round threshold (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7 step 4), the Round-N escalation gate follows.
    - `"Skip — keep findings on disk"` — carries ` (Recommended)` under the same §4 severity rule.
 
    Full AskQuestion shape (literal block), descriptions, and severity-driven recommendation rule: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4. Persist user pick to `approvals[]` with category `action_gate` via `atomic_state_append_list_item` (never a raw write on the handoff path).
    - **Include-deferred gate (chained).** When the pick is `"/geniro:implement findings"` and the report holds set-aside minor findings, a chained question asks whether to include them in the fix list, resolving before the follow-up echo line; skipped silently when none. Canonical contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4.6.
-   - **Final message, every pick.** Whichever option was chosen — implement / Post / Continue rounds / Skip — the last chat message before the phase ends states the verdict (kept-finding counts by severity, or the clean-pass affirmation) and the handoff's absolute path in the same `<PRIMARY_ROOT>` form used above; the repo-relative form, or either half missing, fails `review-definition-of-done.md`'s final check.
+   - **Final message, every pick.** Whichever option was chosen — implement / Post / Continue rounds / Skip — the last chat message before the phase ends states the verdict (kept-finding counts by severity, or the clean-pass affirmation) and the handoff's absolute path; the repo-relative form, or either half missing, fails `review-definition-of-done.md`'s final check.
 
 **Round-N escalation gate** — a "Continue rounds" pick past the round threshold (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7 step 4) fires a secondary AUQ (Continue / Escalate / Abort); contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §5. Terminal `aborted` records `## Termination reason: repeated-failure: round-limit-3`.

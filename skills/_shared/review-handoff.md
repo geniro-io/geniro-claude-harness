@@ -77,7 +77,7 @@ This gate runs FIRST in Phase 6 — before the Step 0 and Action gates — whene
 
 ## 2.6 Handoff file template (written in Phase 5.1)
 
-Phase 5.1 writes the handoff at `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write` — never a direct Edit/Write. `<PRIMARY_ROOT>` resolves per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A.
+Phase 5.1 writes the handoff at `$(_geniro_handoff_target review <branch>)` via `atomic_state_write` — never a direct Edit/Write.
 
 The canonical handoff is a one-shot producer→consumer artifact; /geniro:review extends it with `phase:` / `status:` / `round:` / `approvals[]` so a compaction mid-run can recover. The file behaves as a handoff AT REST (after Phase 5 persist) and as a working state file DURING THE RUN.
 
@@ -85,7 +85,8 @@ The heredoc below is quoted (`<<'EOF'`) so the `${CLAUDE_PLUGIN_ROOT}` and `$(�
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
-atomic_state_write "<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md" <<'EOF'
+source "${CLAUDE_PLUGIN_ROOT}/lib/unit-dir.sh"
+atomic_state_write "$(_geniro_handoff_target review <branch>)" <<'EOF'
 ---
 tier: T2
 producer: review
@@ -362,13 +363,13 @@ AskUserQuestion(
     },
     {
       "label": "Skip — keep findings on disk", # append " (Recommended)" when CRITICAL=0 AND HIGH<=1
-      "description": "Stop here. The findings stay saved at .geniro/state/handoff/from-review-<branch>.md — resume later with /geniro:implement <path> or by running /geniro:review again."
+      "description": "Stop here. The findings stay saved at <absolute path of review.md> — resume later with /geniro:implement <path> or by running /geniro:review again."
     }
   ]
 )
 ```
 
-After the user picks — and, on the `/geniro:implement findings` pick, after the §4.6 include-deferred gate resolves — surface ONE follow-up chat line stating the chosen next command verbatim, with the handoff's absolute path (e.g., `Run: /geniro:implement <PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`, `<PRIMARY_ROOT>` resolved per §2.6) — the user runs the slash command themselves; the orchestrator never auto-invokes /geniro:implement. Add that the handoff file carries everything /geniro:implement needs, so the user can run `/clear` first and start it on a fresh context.
+After the user picks — and, on the `/geniro:implement findings` pick, after the §4.6 include-deferred gate resolves — surface ONE follow-up chat line stating the chosen next command verbatim, with the handoff's absolute path (e.g., `Run: /geniro:implement <$(_geniro_handoff_target review <branch>), absolute>`) — the user runs the slash command themselves; the orchestrator never auto-invokes /geniro:implement. Add that the handoff file carries everything /geniro:implement needs, so the user can run `/clear` first and start it on a fresh context.
 
 **Post-option presence.** "Post Draft PR review" is present whenever `pr-ref:` is non-`none` AND at least one finding of any severity (including LOW / deferred / sub-threshold) remains unposted (no `[POSTED-TO-PR]` tag) AND not kept off the PR (`post-disposition: off-pr`) AND not resolved to need no action (`post-disposition: no-action`) — an all-LOW review still presents it; otherwise omit it. Posting is an external write to a public surface — this gate is mandatory before ANY review posting: fire it and wait; never auto-post (even a draft), never publish, never substitute a chat-text "submit it yourself" line for the pick. Picking it IS the approval; the post creates a PENDING draft the user submits themselves (per §7.4). The Action gate is mutually exclusive — user chooses ONE path.
 
@@ -450,4 +451,4 @@ Every gate in this phase follows the empty-answer rule in `${CLAUDE_PLUGIN_ROOT}
 | Continue rounds → Round-N → Escalate | `escalated` | (omitted; surfaced in `## Open Questions`) |
 | Skip — keep findings on disk | `done` | `modifier-exit: skip-action` |
 
-A review resumes only when the user re-invokes `/geniro:review` — the SessionStart restore hook globs for files literally named `state.md`, and this skill persists directly to `from-review-<branch>.md` (never a separate `state.md`), so the hook never surfaces `## Termination reason` on its own. The next invocation's own Phase 1 reads it from this file.
+A review resumes only when the user re-invokes `/geniro:review` — the SessionStart restore hook globs for files literally named `state.md`, and this skill persists directly to `review.md` (never a separate `state.md`), so the hook never surfaces `## Termination reason` on its own. The next invocation's own Phase 1 reads it from this file.

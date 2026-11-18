@@ -97,11 +97,11 @@ The plugin itself ships globally — agents, skills, and hooks live inside the i
 ```
 .geniro/
 ├── planning/               # specs, plans, _CODEBASE_MAP.md, _FEATURES.md, _project.md, _focus-*.md
-│   └── <task-dir>/         # task-bound: spec.md, plan.md, state.md, milestone-N.md
-├── state/                  # session-bound + handoff
+│   └── <unit>/             # one folder per unit of work: spec.md, plan.md, state.md, milestone-N.md,
+│                           # review.md, debug.md, debug-adversarial.md, review-brief-<date>.md, investigate-<topic>.md
+├── state/                  # session-bound resume state
 │   ├── <skill>/<slug>/state.md  # /debug, /refactor, /onboard, /investigate, /resolve, /audit-instructions
-│   ├── setup/state.md      # /setup singleton
-│   └── handoff/            # inter-skill: from-<producer>-<branch>.md
+│   └── setup/state.md      # /setup singleton
 ├── knowledge/              # learnings.jsonl (L2 episodic)
 ├── instructions/           # L4 procedural: global.md, memory.md, code-style.md,
 │                           # per-skill.md, review-extra/<slug>.md
@@ -219,7 +219,7 @@ Reporter loop — six numbered phases plus a mechanical pre-pass (triage → mec
 
 ### `/geniro:debug` — Scientific-method bug investigation
 
-3-phase loop (Investigate → Propose → Ship). Phase 1 observes / hypothesizes / tests / isolates root cause; Phase 2 authors a text fix proposal + F→P reproduction test (no production-source edits); Phase 3 persists T2 handoff at `.geniro/state/handoff/from-debug-<branch>.md` and escalates to `/geniro:implement`. Stall gate (5 inconclusive → AUQ); fix-fail gate (2 attempts → AUQ); decision gates render the investigation context (root cause, evidence, fix options) as a self-contained chat explanation before a lean question. Phase 3 auto-emits L2 `diagnosis` with `ext.{symptom, root_cause, fix}`. **Never ships code.**
+3-phase loop (Investigate → Propose → Ship). Phase 1 observes / hypothesizes / tests / isolates root cause; Phase 2 authors a text fix proposal + F→P reproduction test (no production-source edits); Phase 3 persists T2 handoff at `.geniro/planning/<unit>/debug.md` and escalates to `/geniro:implement`. Stall gate (5 inconclusive → AUQ); fix-fail gate (2 attempts → AUQ); decision gates render the investigation context (root cause, evidence, fix options) as a self-contained chat explanation before a lean question. Phase 3 auto-emits L2 `diagnosis` with `ext.{symptom, root_cause, fix}`. **Never ships code.**
 
 ```
 /geniro:debug login returns 500 after password reset
@@ -248,7 +248,7 @@ Reporter loop — six numbered phases plus a mechanical pre-pass (triage → mec
 
 ### `/geniro:investigate` — Deep codebase Q&A
 
-3-phase loop (Classify+Scope → Investigate+Verify → Synthesize+Review+Present). Phase 1 classifies $ARGUMENTS into 9-type taxonomy + 5-step JIT retrieval cadence; pure external "docs lookup" questions suggest the native `/deep-research` workflow instead, while anything needing code or git evidence stays here. Phase 2 spawns 1-3 parallel research agents (Codebase Analyst / Git Historian / Internet Researcher — literal classified set, never over-spawned). Phase 3 synthesizes, spawns a fresh general-purpose verifier agent, presents with Sources + Open questions, and offers a dive-deeper follow-up. L2 `discovery` emit with trust label (`verified` if code-grounded; `retrieved` if WebFetch/WebSearch load-bearing). **Never ships code.**
+3-phase loop (Classify+Scope → Investigate+Verify → Synthesize+Review+Present). Phase 1 classifies $ARGUMENTS into 9-type taxonomy + 5-step JIT retrieval cadence; pure external "docs lookup" questions suggest the native `/deep-research` workflow instead, while anything needing code or git evidence stays here. Phase 2 spawns 1-3 parallel research agents (Codebase Analyst / Git Historian / Internet Researcher — literal classified set, never over-spawned). Phase 3 synthesizes, spawns a fresh general-purpose verifier agent, presents with Sources + Open questions, saves the answer to `.geniro/planning/<unit>/investigate-<topic-slug>.md`, and offers a dive-deeper follow-up. L2 `discovery` emit with trust label (`verified` if code-grounded; `retrieved` if WebFetch/WebSearch load-bearing). **Never ships code.**
 
 ```
 /geniro:investigate how does the caching layer invalidate stale entries?

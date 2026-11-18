@@ -22,7 +22,7 @@ Run the scripted checks first:
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/validate-plan-spec.sh"
-validate_plan_spec ".geniro/planning/<task-slug>/spec.md"
+validate_plan_spec "<task-dir>/spec.md"
 ```
 
 One TAB-separated `check_id status finding_text fix_hint` row per scripted check, in check-number order. `rc 0` = nothing failed (a `warn` or `skip` still exits 0), `rc 1` = at least one row is a `fail`, `rc 64` = no path passed, `rc 65` = path unreadable.

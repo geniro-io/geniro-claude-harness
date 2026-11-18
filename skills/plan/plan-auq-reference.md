@@ -16,7 +16,7 @@ Literal `AskUserQuestion` templates and state-schema blocks for the `/geniro:pla
 
 ## 1. state.md frontmatter and body template
 
-Phase 0.3 writes state.md via `atomic_state_write` to `.geniro/planning/<task-slug>/state.md`. Frontmatter:
+Phase 0.3 writes state.md via `atomic_state_write` to `<task-dir>/state.md`. Frontmatter:
 
 ```yaml
 ---
@@ -332,7 +332,7 @@ before it's committed and handed to implementation: <section 1 Objective in plai
 **⚠️ Risk level:** <the highest per-risk severity in section 5, raised one level
 when frontmatter forbidden_actions is non-empty> — <one-line why, naming the risk
 that set the level>
-**⏳ Still waiting on others:** <each `pending: <owner>` assumption from section 4, by owner — omit when none; questions in `.geniro/planning/<slug>/questionnaire.md`; an answer replaces its `pending:` line in the spec before /geniro:implement runs>
+**⏳ Still waiting on others:** <each `pending: <owner>` assumption from section 4, by owner — omit when none; questions in `<task-dir>/questionnaire.md`; an answer replaces its `pending:` line in the spec before /geniro:implement runs>
 
 ## Goal & scope
 
@@ -380,7 +380,7 @@ Changing how events are stored, and any admin screen for triggering this.
 Approval is valid for this planning session; re-approval is needed if the spec is
 edited after this point.
 
-**Technical detail:** spec on disk at `.geniro/planning/<slug>/spec.md`;
+**Technical detail:** spec on disk at `<task-dir>/spec.md`;
 <glob count from section 2 Scope.Included> files in the touched surface.
 ```
 
@@ -388,7 +388,7 @@ Then the LEAN AUQ — `question` is a one-line recap pointing at the message:
 
 ```yaml
 header: "Approve spec"
-question: "Approve the spec summarized above? (Full text: .geniro/planning/<slug>/spec.md)"
+question: "Approve the spec summarized above? (Full text: <task-dir>/spec.md)"
 options:
   - label: "Approve — commit the plan"   # Recommended
     description: "Commits the plan (if the project tracks its planning folder) and this run's glossary and decision-record notes, then prints the /geniro:implement command."

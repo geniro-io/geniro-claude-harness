@@ -7,14 +7,14 @@ Every item below is an exit gate — a condition checkable as done or not-done o
 `/geniro:plan` run is complete when:
 
 - [ ] A pre-existing state.md was pre-flighted with `validate_state_file` before its `phase:` was resumed from, and a failed validation opened the recovery question instead of resuming.
-- [ ] state.md lives at `.geniro/planning/<slug>/state.md` and every write to it went through the `atomic-state-write` helpers — never a direct `Edit`/`Write` or a shell redirection.
+- [ ] state.md lives at `<task-dir>/state.md` and every write to it went through the `atomic-state-write` helpers — never a direct `Edit`/`Write` or a shell redirection.
 - [ ] Every phase ran, with two exceptions that are decisions rather than omissions: Phase 2 when its UI trigger did not match, and the Phase 1 §1.5 Trivial skip of Phases 2 and 3.
 - [ ] Every gate carrying rich content rendered it to chat as a separate, already-emitted message BEFORE its lean AUQ fired (Phase 3 grill questions, Phase 4 approaches, Phase 8 final approval). No question pointed at a render that does not exist.
 - [ ] Every decision the user made is in `approvals[]` — grill answers and checkpoint / exit picks, the approach pick, each requested revision, the final approval, and the launch-config choice. A compaction resume can rebuild the run from those entries alone.
 - [ ] Every glossary entry and ADR file this run wrote that is not committed is named in the final message, and none was reverted silently.
 - [ ] Phase 1 loaded the memory layers for the effort tier, and every research spawn left its Echo-contract entry in state.md `## Tool log`.
 - [ ] Any user-authored `### After explore` steps loaded from `.geniro/instructions/plan.md` executed before the Phase 1 transition write; silently skipped when none were loaded.
-- [ ] spec.md lives at `.geniro/planning/<slug>/spec.md` carrying all three design-doc markers and the `geniro_schema_version` its own content earns (Phase 6 §6.1), with one `milestone-N.md` per slice when milestone-mode was picked. Phase 6 did not commit.
+- [ ] spec.md lives at `<task-dir>/spec.md` carrying all three design-doc markers and the `geniro_schema_version` its own content earns (Phase 6 §6.1), with one `milestone-N.md` per slice when milestone-mode was picked. Phase 6 did not commit.
 - [ ] The Phase 7 validator ran the full check set in `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` and reported one `status` line per check (any unexecuted check marked `skip`); every hard-fail either cleared inside the auto-revision rounds (§7.3) or was explicitly accepted by the user.
 - [ ] HARD-GATE released only on the Phase 8 "Approve" — no implementation action was taken before that answer.
 - [ ] On Approve: spec.md `lifecycle:` flipped to `approved` and `git commit` fired with its `non-resumable-actions[]` entry, carrying the glossary and ADR files Phase 3 wrote — or the planning dir was git-ignored, in which case the spec's skip is recorded as an `## Errors` line, the user was told in plain English that the plan is on disk uncommitted, and the docs were still committed.

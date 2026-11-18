@@ -12,7 +12,7 @@ Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `S
 
 ### 6.1 Write contract
 
-Path: `.geniro/planning/<task-slug>/spec.md`.
+Path: `<task-dir>/spec.md`.
 
 Content: the `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` schema + frontmatter with goal block + optional `workflow_refs[]` + body sections (`## Considered Alternatives` from Phase 4, optional `## Milestones` from Phase 5 milestone-mode).
 
