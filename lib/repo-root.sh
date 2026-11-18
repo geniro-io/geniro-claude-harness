@@ -40,27 +40,10 @@ _gr_phys() {
   (cd "$1" 2>/dev/null && pwd -P)
 }
 
-# Main checkout from the git common dir; prints nothing when it cannot tell.
+# Main checkout from the physical git common dir $1; prints nothing when it cannot tell.
 _gr_main_from_common() {
-  local common p g w
-  common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || true
-  case "$common" in
-    /*) ;;
-    *)
-      common="$(git rev-parse --git-common-dir 2>/dev/null | tail -n 1)" || true
-      [ -n "$common" ] || return 0
-      ;;
-  esac
-  common="$(_gr_phys "$common")" || true
+  local common="$1" p g w cfg line key val bare=""
   [ -n "$common" ] || return 0
-  w="$(git --git-dir="$common" config core.worktree 2>/dev/null || true)"
-  if [ -n "$w" ]; then
-    case "$w" in /*) ;; *) w="$common/$w" ;; esac
-    w="$(_gr_phys "$w" || true)"
-    # Walk up from the submodule checkout so a linked worktree of it and the
-    # checkout itself agree on one root (a superproject's `.geniro/` wins).
-    if [ -n "$w" ]; then _gr_walk_root "$w"; return 0; fi
-  fi
   p="$(dirname "$common")"
   g=""
   if [ -d "$p/.git" ]; then
@@ -71,9 +54,32 @@ _gr_main_from_common() {
   fi
   if [ -n "$g" ] && [ "$(_gr_phys "$g" || true)" = "$common" ]; then
     echo "$p"
-  elif [ "$(git --git-dir="$common" config --bool core.bare 2>/dev/null || true)" = "true" ]; then
-    echo "$common"
+    return 0
   fi
+  w=""
+  cfg="$(git --git-dir="$common" config --get-regexp '^core\.(worktree|bare)$' 2>/dev/null || true)"
+  while IFS= read -r line; do
+    case "$line" in
+      *" "*) key="${line%% *}"; val="${line#* }" ;;
+      *) key="$line"; val="true" ;;
+    esac
+    case "$key" in
+      core.worktree) w="$val" ;;
+      core.bare) bare="$val" ;;
+    esac
+  done <<EOF
+$cfg
+EOF
+  if [ -n "$w" ]; then
+    case "$w" in /*) ;; *) w="$common/$w" ;; esac
+    w="$(_gr_phys "$w" || true)"
+    # Walk up from the submodule checkout so a linked worktree of it and the
+    # checkout itself agree on one root (a superproject's `.geniro/` wins).
+    if [ -n "$w" ]; then _gr_walk_root "$w"; return 0; fi
+  fi
+  case "$bare" in
+    true|True|TRUE|yes|Yes|YES|on|On|ON|1) echo "$common" ;;
+  esac
   return 0
 }
 
@@ -92,7 +98,7 @@ _gr_stale_gitdir() {
   done
 }
 
-_gr_walk_root() {  # [start dir, default $PWD]
+_gr_walk_root() {  # [start dir, default $PWD] [toplevel the caller already resolved, "" = none]
   local d="${1:-$PWD}" t
   while [ "$d" != "/" ] && [ -n "$d" ]; do
     if [ -d "$d/.geniro" ]; then
@@ -101,7 +107,11 @@ _gr_walk_root() {  # [start dir, default $PWD]
     fi
     d="$(dirname "$d")"
   done
-  t="$(git rev-parse --show-toplevel 2>/dev/null)" || t=""
+  if [ $# -ge 2 ]; then
+    t="$2"
+  else
+    t="$(git rev-parse --show-toplevel 2>/dev/null)" || t=""
+  fi
   [ -z "${1:-}" ] || t="$1"
   if [ -n "$t" ]; then
     _gr_phys "$t" || echo "$t"
@@ -112,10 +122,21 @@ _gr_walk_root() {  # [start dir, default $PWD]
 }
 
 _geniro_repo_root() {
-  local toplevel main out stale tab g
-  toplevel="$(git rev-parse --show-toplevel 2>/dev/null)" || true
+  local raw nl common toplevel main out stale tab g
+  nl=$'\n'
+  raw="$(git rev-parse --path-format=absolute --git-common-dir --show-toplevel 2>/dev/null)" || true
+  case "$raw" in
+    "--path-format=absolute"|"--path-format=absolute$nl"*) raw="${raw#--path-format=absolute}"; raw="${raw#"$nl"}" ;;
+  esac
+  common="${raw%%"$nl"*}"
+  toplevel=""
+  case "$raw" in
+    *"$nl"*) toplevel="${raw#*"$nl"}"; toplevel="${toplevel%%"$nl"*}" ;;
+  esac
   [ -z "$toplevel" ] || toplevel="$(_gr_phys "$toplevel")" || true
-  main="$(_gr_main_from_common)" || true
+  [ -z "$common" ] || common="$(_gr_phys "$common")" || true
+  main=""
+  [ -z "$common" ] || main="$(_gr_main_from_common "$common")" || true
   if [ -z "$main" ] && [ -n "$toplevel" ]; then
     # Porcelain stanzas are `worktree <path>` followed by attribute lines
     # (`bare` / `HEAD …` / `branch …`), blank-line separated. Skip bare
@@ -131,7 +152,7 @@ _geniro_repo_root() {
     [ -z "$main" ] || main="$(_gr_phys "$main")" || true
     # `--separate-git-dir` repos: git lists the git dir itself as the main
     # worktree. A git dir is not a checkout, so fall through to the walk-up.
-    if [ -n "$main" ] && [ "$main" = "$(_gr_phys "$(git rev-parse --git-common-dir 2>/dev/null)" || true)" ]; then
+    if [ -n "$main" ] && [ "$main" = "$common" ]; then
       main=""
     fi
   fi
@@ -140,7 +161,7 @@ _geniro_repo_root() {
     return 0
   fi
 
-  out="$(_gr_walk_root)" || true
+  out="$(_gr_walk_root "" "$toplevel")" || true
   if [ -z "$main" ] && [ -z "$toplevel" ]; then
     tab="$(printf '\t')"
     stale="$(_gr_stale_gitdir)" || true
