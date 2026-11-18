@@ -143,6 +143,6 @@ When the §1.7 stall gate fires, classify the stall as a missing component (8-ca
 ## Tool surface
 
 - Read / Grep / Glob, plus read-only Bash: `git status` / `log` / `diff` / `blame` / `bisect`, `gh pr list` / `view` / `diff` for the §1.2 open-PR scan, test re-runs without code edits, log inspection, profiler invocations, and third-party CLIs such as `psql -c` against a test DB when configured. Web search and fetch serve §1.5's external-dependency hypothesis. `AskUserQuestion`, and the declared memory backend's read tool.
-- Edit / write for EXPERIMENTS only — debug scripts, logging statements, scratch test files, `.geniro/state/debug/<slug>/` artifacts.
+- Edit / write for EXPERIMENTS only — debug scripts, logging statements, scratch test files, `<STATE_DIR>` artifacts.
 - Subagent spawns: `codebase-research-agent` for codebase mapping and flow tracing (Loop Invariant S1); `finding-verifier-agent` for the §1.6 root-cause verification when the cause rests on reasoning.
 - Blocked: production-source writes and edits that are not reverted before handoff — permitted only as the reverted experiments above (tagged debug logging, scratch files); `git push`, `gh pr create`, branch switching beyond the Step 0.2 workspace pick.

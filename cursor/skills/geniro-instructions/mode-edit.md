@@ -30,7 +30,7 @@ After editing a `review-extra` file, re-run the lint rule set against the edited
 Print (per `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-parse.md` Step 0.5: when the main repo checkout is not the current working tree, name the resolved absolute path instead and append the survives-this-worktree clause):
 
 ```
-Updated `.geniro/instructions/<scope>.md`. The new rules take effect the next time you run `/geniro:<scope>` (or any affected skill for global.md), unless this worktree has its own differing copy of the file — that copy takes precedence here.
+Updated `.geniro/instructions/<scope>.md`. The new rules take effect the next time you run `/geniro:<scope>` (or any affected skill for global.md).
 ```
 
 ### Body section invariants (post-edit)

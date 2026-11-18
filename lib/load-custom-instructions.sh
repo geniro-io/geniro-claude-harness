@@ -16,9 +16,8 @@
 #       LOAD_TIER rules-only -> global.md, memory.md
 #       Base dir: $GENIRO_INSTRUCTIONS_DIR, then $CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR
 #       (flat layout, no fallback; a configured-but-missing dir prints a caveat and
-#       the in-repo default applies). Otherwise the current checkout's
-#       `.geniro/instructions/<file>` first (its git top level, `$PWD` outside git),
-#       then `<_geniro_repo_root>/.geniro/instructions/<file>`.
+#       the in-repo default applies). Otherwise `<_geniro_repo_root>/.geniro/instructions/<file>`
+#       only: the main checkout, never a linked worktree's own copy.
 #       One echo line per file in the load set, then one `Read: <absolute path>`
 #       line per file the run must Read. A file not found or unreadable is
 #       echoed only; a readable file the counters fail on is echoed as
@@ -145,21 +144,16 @@ _lci_counts_detail() {
 
 # Print one file's echo line and queue its path on _LCI_READS.
 #   $1 file name   $2 external dir ("" = in-repo mode)   $3 primary root ("" in external mode)
-#   $4 "1" when the primary root is a different checkout than the current one
-#   $5 the current checkout's root ("" in external mode)
 # The resolved file lives in `target`, never `path`: under zsh `path` is tied to
 # PATH, so assigning it empties the command search path and the awk calls fail.
 _lci_load_one() {
-  local file="${1:-}" ext="${2:-}" primary_root="${3:-}" other_checkout="${4:-}" cwd_root="${5:-}"
+  local file="${1:-}" ext="${2:-}" primary_root="${3:-}"
   local target="" where="" reason="" no_counts="" detail=""
 
   if [ -n "$ext" ]; then
     where=" from external instructions dir"
     [ -e "$ext/$file" ] && target="$ext/$file"
-  elif [ -e "$cwd_root/.geniro/instructions/$file" ]; then
-    target="$cwd_root/.geniro/instructions/$file"
   elif [ -n "$primary_root" ] && [ -e "$primary_root/.geniro/instructions/$file" ]; then
-    [ -n "$other_checkout" ] && where=" from primary worktree"
     target="$primary_root/.geniro/instructions/$file"
   fi
 
@@ -195,7 +189,7 @@ _lci_load_one() {
 
 load_custom_instructions() {
   local slug="${1:-}" tier="${2:-}"
-  local ext="" primary_root="" other_checkout="" toplevel="" cwd_root=""
+  local ext="" primary_root=""
 
   if [ -z "$slug" ] || [ -z "$tier" ]; then
     echo "load_custom_instructions: usage: load_custom_instructions <SKILL_SLUG> <LOAD_TIER>" >&2
@@ -232,24 +226,15 @@ load_custom_instructions() {
   fi
   if [ -z "$ext" ]; then
     primary_root="$(_geniro_repo_root)"
-    # The first lookup is the current checkout's root, so a subdirectory of a
-    # linked worktree still finds that worktree's own files.
-    toplevel="$(git rev-parse --show-toplevel 2>/dev/null)" || toplevel=""
-    cwd_root="${toplevel:-$PWD}"
-    # Label the fallback by checkout, not by cwd: a subdirectory of the main
-    # checkout resolves that checkout's own file, which is not "primary worktree".
-    if [ "$toplevel" != "$(git -C "$primary_root" rev-parse --show-toplevel 2>/dev/null)" ]; then
-      other_checkout=1
-    fi
   fi
 
   _LCI_READS=""
   # One call per file, not a loop: each call shells out to awk.
-  _lci_load_one global.md "$ext" "$primary_root" "$other_checkout" "$cwd_root"
-  _lci_load_one memory.md "$ext" "$primary_root" "$other_checkout" "$cwd_root"
+  _lci_load_one global.md "$ext" "$primary_root"
+  _lci_load_one memory.md "$ext" "$primary_root"
   if [ "$tier" = "pipeline" ]; then
-    _lci_load_one "$slug.md" "$ext" "$primary_root" "$other_checkout" "$cwd_root"
-    _lci_load_one code-style.md "$ext" "$primary_root" "$other_checkout" "$cwd_root"
+    _lci_load_one "$slug.md" "$ext" "$primary_root"
+    _lci_load_one code-style.md "$ext" "$primary_root"
   fi
   printf '%s' "$_LCI_READS"
   return 0

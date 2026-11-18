@@ -106,12 +106,12 @@ Used by:
 - `/geniro:debug` Phase 2 (Multi-path fix gate when a confirmed root cause has 2-4 valid fix paths with real trade-offs)
 - `/geniro:debug` Phase 2 escape hatch (No repro — alternative regression-guard picker when the bug is non-deterministic)
 
-Structurally identical to the Single-finding gate above, but the "finding" is constructed by the `/geniro:debug` investigation rather than read from a reviewer-agent `Options:` field — body fields come from `.geniro/state/debug/<slug>/state.md` instead of the reviewer-agent output.
+Structurally identical to the Single-finding gate above, but the "finding" is constructed by the `/geniro:debug` investigation rather than read from a reviewer-agent `Options:` field — body fields come from `<STATE_DIR>/state.md` (debug's state dir, `_geniro_state_dir debug`) instead of the reviewer-agent output.
 
 ### Required AUQ shape
 
 - **`header`**: short chip label set by the calling skill (`"Fix path"` for the multi-path fix gate, `"No repro"` for the repro-infeasible escape hatch — both `/geniro:debug` Phase 2).
-- **Chat render (first):** render the investigation context to chat per `per-finding-question.md` §Message-first rendering — the progress tracker (only when ≥2 fix decisions are queued), `### 🧭 Fix decision: <plain-English root-cause title>`, `**In one sentence:** <what this decision settles>`, a conversational root-cause digest in the plain layer (what is failing and what the user would see), then a `**Technical detail:**` block holding the root cause's `path:lines`, the failing symbol, and the captured output, with the cause→effect flow visual per § Finding-type visual map (Debug root cause row) inside it, a **Reproduction status** line, then **Options** (each fix path + consequence). Pull fields from `.geniro/state/debug/<slug>/state.md`.
+- **Chat render (first):** render the investigation context to chat per `per-finding-question.md` §Message-first rendering — the progress tracker (only when ≥2 fix decisions are queued), `### 🧭 Fix decision: <plain-English root-cause title>`, `**In one sentence:** <what this decision settles>`, a conversational root-cause digest in the plain layer (what is failing and what the user would see), then a `**Technical detail:**` block holding the root cause's `path:lines`, the failing symbol, and the captured output, with the cause→effect flow visual per § Finding-type visual map (Debug root cause row) inside it, a **Reproduction status** line, then **Options** (each fix path + consequence). Pull fields from `<STATE_DIR>/state.md`.
 - **`question`** (lean): multi-line markdown:
 
  ```
@@ -120,7 +120,7 @@ Structurally identical to the Single-finding gate above, but the "finding" is co
  Full explanation above. How do you want to <resolve | regression-guard> it?
  ```
 
- Pull the root-cause `path:lines`, hypothesis title, and observed-failure summary from `.geniro/state/debug/<slug>/state.md` (the confirmed hypothesis's `## Root Cause` file:line + title + `## Hypotheses` Result field pre-fix output).
+ Pull the root-cause `path:lines`, hypothesis title, and observed-failure summary from `<STATE_DIR>/state.md` (the confirmed hypothesis's `## Root Cause` file:line + title + `## Hypotheses` Result field pre-fix output).
 - **`options[]`** — one per fix path or per alternative regression guard:
  - **`label`**: 1-5 words — the path/guard name (e.g. `"COALESCE default"`, `"Add monitor/alert"`).
  - **`description`**: 1-line trade-off — provided by the calling skill per its constructed menu.
@@ -129,7 +129,7 @@ Structurally identical to the Single-finding gate above, but the "finding" is co
 
 ### Source-field map
 
-| AUQ field | `.geniro/state/debug/<slug>/state.md` field |
+| AUQ field | `<STATE_DIR>/state.md` field |
 |-----------|--------------------------------------|
 | `path:lines` in `question` | confirmed hypothesis's `## Root Cause` section (file:line of root cause) |
 | `<hypothesis title>` in `question` | confirmed hypothesis's title |
@@ -144,4 +144,4 @@ For skills running findings end-to-end in one invocation (`/geniro:review`), the
 
 For cross-skill consumers (`/geniro:implement`'s Phase 1 handoff-resolution step "Persist review/debug handoffs"), findings arrive in the Phase 3 self-review context (recorded in `<task-dir>/state.md`) or via the `/geniro:review` handoff at `review.md` in the unit dir. Those files carry the body fields per finding (at minimum for PRODUCT-DECISION rows, which is the only place AUQ fires across the skill boundary) — see the per-finding body schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` for the persisted shape.
 
-For `/geniro:debug` Phase 2 / gates, body fields come from `.geniro/state/debug/<slug>/state.md` (the confirmed hypothesis's `## Root Cause` + `## Hypotheses` Result + `## Reproduction Test` Reproduction Decision sections) — debug operates within a single invocation, so the artifact and in-memory state are the same source.
+For `/geniro:debug` Phase 2 / gates, body fields come from `<STATE_DIR>/state.md` (the confirmed hypothesis's `## Root Cause` + `## Hypotheses` Result + `## Reproduction Test` Reproduction Decision sections) — debug operates within a single invocation, so the artifact and in-memory state are the same source.

@@ -6,9 +6,9 @@ Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Ph
 
 **Tool surface.** Allowed: `Read`, `Bash(rm)`, `AskUserQuestion`. Forbidden: `Write`, `Edit`, all `mcp__*`, network egress.
 
-### Step 1 — Resolve target copy
+### Step 1 — Resolve target
 
-Apply `${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md` §Target resolution. Its Step 4 resolves which copy to delete — the canonical main-repo copy by default, the local branch copy when only it exists or the user picks it. Continue with `<resolved-path>`.
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md` §Target resolution. The resolved file is the main checkout's copy. Continue with `<resolved-path>`.
 
 ### Step 2 — Confirm + high-risk warning
 

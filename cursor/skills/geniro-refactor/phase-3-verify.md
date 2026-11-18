@@ -35,7 +35,7 @@ Run `git diff --name-only` and `git diff --stat`. Cross-check state.md `## Plan 
 
 Skipped for Trivial and Small per Step 3.
 
-**Resolve `PRIMARY_ROOT` first.** Run the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` in a shell call before invoking the custom-reviewer helper — the helper requires the slot in scope to dual-glob local + main-worktree `review-extra/` files, and a linked worktree's `.geniro/instructions/` is gitignored and may be empty.
+**Resolve `PRIMARY_ROOT` first.** Run the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` in a shell call before invoking the custom-reviewer helper — the helper requires the slot in scope to glob the main checkout's `review-extra/` files.
 
 For Medium and Big: spawn a fresh reviewer-agent (focus areas — accidental public-API changes / test assertion mutations / invariant drift / new coupling / dead-code removal that had references) PLUS any custom reviewers discovered via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (matched by `paths:` filter against changed files). All spawns go in ONE parallel batch — same assistant response. The reviewer-agent reads `bugs-criteria.md`, `architecture-criteria.md`, `tests-criteria.md` itself; do NOT pre-read into orchestrator context.
 
@@ -128,7 +128,7 @@ Treat each bullet as an imperative to execute in order, honoring any `AskQuestio
 
 After Phase 3 completes:
 
-- **All tiers:** `[ -n "$slug" ] && rm -rf ".geniro/state/refactor/$slug/"` (cwd-relative; current branch's slug only) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — the whole slug dir, so any scratch written under it goes with `state.md`. Useful content already saved (transformations, discoveries) via L2 emit + chat summary. Sibling slugs from other branches stay.
+- **All tiers:** `STATE_DIR="$(source "${CLAUDE_PLUGIN_ROOT}/lib/unit-dir.sh" && _geniro_state_dir refactor)"; [ -n "$STATE_DIR" ] && rm -rf "$STATE_DIR"` (current branch only) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — scratch goes with `state.md`. Useful content already saved (transformations, discoveries) via L2 emit + chat summary. Sibling slugs from other branches stay.
 - Kill any background processes started during the run (test watchers, profilers).
 
 Cleanup is best-effort — failed commands silently OK.

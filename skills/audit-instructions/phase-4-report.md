@@ -2,7 +2,7 @@
 
 Read on Phase 4 entry from `/geniro:audit-instructions` SKILL.md; the spine's invariants and budgets stay binding here. On the same entry, also Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md` and `audit-instructions-definition-of-done.md`, so no Read separates the render from the question.
 
-Write `.geniro/state/audit-instructions/report-<YYYY-MM-DD>.md` via `atomic_state_write` — it lives outside the slug directory deliberately, so it survives the Phase 5 cleanup and becomes the next run's Phase 0 input. Structure:
+Write `<main>/.geniro/state/audit-instructions/report-<YYYY-MM-DD>.md` (`<main>`: `_geniro_repo_root` from `${CLAUDE_PLUGIN_ROOT}/lib/repo-root.sh`) via `atomic_state_write` — outside the slug directory, so it survives Phase 5 cleanup as the next run's Phase 0 input. Structure:
 
 1. **Header** — date, scope, which dimensions ran, sharding, and the Phase 0 prior-report read: the prior report's date when one was found and consumed, or `no prior report found` when none existed. A skipped read is otherwise indistinguishable from a genuine first run.
 2. **Health summary** — what's strong and must not be over-corrected (feeds the next run's do-not-flag list).

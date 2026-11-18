@@ -30,7 +30,7 @@ The orchestrator executes the approved plan inline, one step at a time — no su
 **Pre-loop setup:**
 
 - Read the approved plan from state.md `## Plan steps` (skipping any HIGH steps the user rejected in the Phase 1 §1.6 approval gate).
-- Take code-style content as loaded by the load-custom-instructions loader (cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`). Use it inline when applying transformations. Skip when loader echoed `No code-style.md found — skipping.`
+- Take code-style content as loaded by the load-custom-instructions loader (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`). Use it inline when applying transformations. Skip when loader echoed `No code-style.md found — skipping.`
 - Resolve test commands: `<test_cmd_affected>` from CLAUDE.md's Essential Commands (per-step gate; falls back to `<test_cmd>` if undefined); `<test_cmd>` for final regression.
 - Anchor: verify `pwd && git branch --show-current` once at entry; abort if either differs from baseline.
 

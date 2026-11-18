@@ -99,7 +99,7 @@ The plugin itself ships globally — agents, skills, and hooks live inside the i
 ├── planning/               # specs, plans, _CODEBASE_MAP.md, _FEATURES.md, _project.md, _focus-*.md
 │   └── <unit>/             # one folder per unit of work: spec.md, plan.md, state.md, milestone-N.md,
 │                           # review.md, debug.md, debug-adversarial.md, review-brief-<date>.md, investigate-<topic>.md
-├── state/                  # session-bound resume state
+├── state/                  # session-bound resume state (main checkout)
 │   ├── <skill>/<slug>/state.md  # /debug, /refactor, /onboard, /investigate, /resolve, /audit-instructions
 │   └── setup/state.md      # /setup singleton
 ├── knowledge/              # learnings.jsonl (L2 episodic)
@@ -109,7 +109,7 @@ The plugin itself ships globally — agents, skills, and hooks live inside the i
 └── workflow/               # optional integrations (issue tracker, PR flow)
 ```
 
-`.geniro/` is gitignored by default, except `workflow/`, `instructions/`, and `actions/` which are meant to be committed so the team shares the same rules and integrations.
+`.geniro/` is gitignored by default, except `workflow/`, `instructions/`, and `actions/` which are meant to be committed so the team shares the same rules and integrations. Every write lands in the main checkout, never a linked worktree, and instructions, workflow and actions are read from it only, so everything can be analysed in one place; committing any of it is your project's choice.
 
 ### Subagent models
 
@@ -303,7 +303,7 @@ Stateless CRUD + runner loop (parse → execute → done) over `.geniro/actions/
 /geniro:actions delete pr-notify-slack
 ```
 
-When invoked from a linked git worktree, `run` falls back to the main worktree's registry (with confirmation); `edit`/`delete` operate on the main-repo copy (with the delete confirmation; a lean question appears only when a differing branch-local copy also exists).
+Every sub-command reads and writes the main checkout's `.geniro/actions/`, whichever worktree it runs from (`delete` keeps its confirmation).
 
 ### `/geniro:update` — Update plugin
 

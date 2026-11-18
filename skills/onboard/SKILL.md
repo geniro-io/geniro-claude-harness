@@ -206,12 +206,13 @@ Write the onboarding report to the plain layer of `${CLAUDE_PLUGIN_ROOT}/skills/
 
 ### 2.5 Cleanup
 
-Run this after EVERY terminal `phase:` write — `done`, `map-truncated`, `routed`, and `aborted` alike, not only the happy path — never before: the write's own `mkdir -p` would recreate a slug dir a preceding cleanup just removed. A slug directory left behind by an early exit has no later sweep (the migration walk scans `.geniro/planning`, never `.geniro/state`).
+Run this after EVERY terminal `phase:` write — `done`, `map-truncated`, `routed`, and `aborted` alike, not only the happy path — never before: the write's own `mkdir -p` would recreate a slug dir a preceding cleanup just removed. An early exit's leftover has no later sweep.
 
 State.md `phase: map` → `done` on the happy path. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract:
 
 ```bash
-[ -n "$slug" ] && rm -rf ".geniro/state/onboard/$slug/"
+STATE_DIR="$(source "${CLAUDE_PLUGIN_ROOT}/lib/unit-dir.sh" && _geniro_state_dir onboard)"
+[ -n "$STATE_DIR" ] && rm -rf "$STATE_DIR/"
 ```
 
 **Persistent artifacts STAY:** `_CODEBASE_MAP.md` is T3 — never auto-deleted.
@@ -220,13 +221,13 @@ State.md `phase: map` → `done` on the happy path. Per `${CLAUDE_PLUGIN_ROOT}/s
 
 ## State file schema
 
-Path: `.geniro/state/onboard/<slug>/state.md` (cwd-relative — within-skill resume-from-compaction state per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Artifacts NOT in scope"; compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules).
+Path: `<STATE_DIR>/state.md`, where `STATE_DIR="$(source "${CLAUDE_PLUGIN_ROOT}/lib/unit-dir.sh" && _geniro_state_dir onboard)"` (re-run per Bash call) — main-checkout resume-from-compaction state per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`.
 
 Write via `atomic_state_write` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`:
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
-atomic_state_write ".geniro/state/onboard/<slug>/state.md" <<EOF
+atomic_state_write "<STATE_DIR>/state.md" <<EOF
 ---
 tier: T1.5
 producer: onboard
@@ -269,4 +270,4 @@ EOF
 
 ## State recovery
 
-On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules, look for `.geniro/state/onboard/<slug>/state.md`. If present: source `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` and run `validate_state_file` on it — on failure fire the recovery AskUserQuestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` instead of consuming a corrupt file. On pass, run the helper §Consumer contract (Case A/B/C/D mismatch handling) — a same-cwd resume against a different branch's state file otherwise consumes it silently — then resume from the next incomplete phase.
+On skill start: resolve `<STATE_DIR>` (State file schema), look for `<STATE_DIR>/state.md`. If present: source `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` and run `validate_state_file` on it — on failure fire the recovery AskUserQuestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` instead of consuming a corrupt file. On pass, run the helper §Consumer contract (Case A/B/C/D mismatch handling) — a same-cwd resume against a different branch's state file otherwise consumes it silently — then resume from the next incomplete phase.

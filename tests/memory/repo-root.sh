@@ -84,16 +84,92 @@ mkdir -p "$TMPDIR_BASE/proj6/.geniro"
 expect_root "$TMPDIR_BASE/proj6-wt" "$TMPDIR_BASE/proj6" \
   "linked worktree of a normal repo resolves to the primary worktree"
 
-# 8. Worktree of a BARE repo — the first porcelain entry is the bare hub dir;
-# resolution must skip it (a `bare` attribute line follows the path) instead
-# of landing memory writes inside <hub>.git.
+# 8. Standalone bare repo: the bare dir itself is main (it has no checkout);
+# the worktree's own path is never main.
 mkdir -p "$TMPDIR_BASE/bare-src"
 ( cd "$TMPDIR_BASE/bare-src" && git init -q \
   && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init )
 git clone -q --bare "$TMPDIR_BASE/bare-src" "$TMPDIR_BASE/hub.git" 2>/dev/null
 ( cd "$TMPDIR_BASE/hub.git" && git worktree add -q "$TMPDIR_BASE/wt-of-bare" 2>/dev/null )
-expect_root "$TMPDIR_BASE/wt-of-bare" "$TMPDIR_BASE/wt-of-bare" \
-  "worktree of a bare repo resolves to the worktree, not the bare hub"
+expect_root "$TMPDIR_BASE/wt-of-bare" "$TMPDIR_BASE/hub.git" \
+  "worktree of a standalone bare repo resolves to the bare dir"
+
+# 9. Bare-hub layout (<hub>/.bare + <hub>/.git file): main is <hub> from every
+# worktree and from the hub root, and a worktree that sorts first does not
+# move it.
+mkdir -p "$TMPDIR_BASE/hub"
+git clone -q --bare "$TMPDIR_BASE/bare-src" "$TMPDIR_BASE/hub/.bare" 2>/dev/null
+printf 'gitdir: ./.bare\n' > "$TMPDIR_BASE/hub/.git"
+( cd "$TMPDIR_BASE/hub" \
+  && git worktree add -q "$TMPDIR_BASE/hub/zz-feature" -b zz-feature 2>/dev/null \
+  && git worktree add -q "$TMPDIR_BASE/hub/aa-main" -b aa-main 2>/dev/null )
+expect_root "$TMPDIR_BASE/hub/zz-feature" "$TMPDIR_BASE/hub" "bare hub: from zz-feature resolves to <hub>"
+expect_root "$TMPDIR_BASE/hub/aa-main" "$TMPDIR_BASE/hub" "bare hub: from aa-main resolves to <hub>"
+expect_root "$TMPDIR_BASE/hub" "$TMPDIR_BASE/hub" "bare hub: from the hub root resolves to <hub>"
+( cd "$TMPDIR_BASE/hub" && git worktree add -q "$TMPDIR_BASE/hub/01-hotfix" -b 01-hotfix 2>/dev/null )
+expect_root "$TMPDIR_BASE/hub/zz-feature" "$TMPDIR_BASE/hub" "bare hub: a worktree sorting first does not move the root"
+
+# 10. Normal repo: linked worktrees inside .claude/worktrees/ and outside the
+# repo (path with a space) resolve to main, with or without a .geniro/ of their own.
+mkdir -p "$TMPDIR_BASE/proj7"
+( cd "$TMPDIR_BASE/proj7" && git init -q \
+  && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init \
+  && git worktree add -q "$TMPDIR_BASE/proj7/.claude/worktrees/inside" -b inside 2>/dev/null \
+  && git worktree add -q "$TMPDIR_BASE/outside dir/wt" -b outside 2>/dev/null )
+mkdir -p "$TMPDIR_BASE/proj7/.claude/worktrees/inside/.geniro" "$TMPDIR_BASE/outside dir/wt/sub"
+expect_root "$TMPDIR_BASE/proj7/.claude/worktrees/inside" "$TMPDIR_BASE/proj7" \
+  "worktree under .claude/worktrees resolves to main despite its own .geniro/"
+expect_root "$TMPDIR_BASE/outside dir/wt/sub" "$TMPDIR_BASE/proj7" \
+  "subdir of a worktree outside the repo (space in path) resolves to main"
+expect_root "$TMPDIR_BASE/proj7" "$TMPDIR_BASE/proj7" "main checkout without .geniro/ resolves to itself"
+
+# 11. Real submodule (common dir under <super>/.git/modules/, core.worktree set):
+# its main checkout is the submodule checkout itself, never a path inside .git.
+mkdir -p "$TMPDIR_BASE/super"
+( cd "$TMPDIR_BASE/super" && git init -q \
+  && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init \
+  && git -c protocol.file.allow=always -c user.email=t@t -c user.name=t \
+       submodule add -q "$TMPDIR_BASE/bare-src" sub 2>/dev/null )
+expect_root "$TMPDIR_BASE/super/sub" "$TMPDIR_BASE/super/sub" "submodule resolves to its own checkout, not <super>/.git/modules"
+mkdir -p "$TMPDIR_BASE/super/.geniro"
+expect_root "$TMPDIR_BASE/super/sub" "$TMPDIR_BASE/super" "submodule without .geniro/ walks up to the superproject's"
+# A linked worktree of the submodule resolves like the submodule checkout itself.
+( cd "$TMPDIR_BASE/super/sub" && git -c user.email=t@t -c user.name=t worktree add -q "$TMPDIR_BASE/sub-wt" -b subwt 2>/dev/null )
+expect_root "$TMPDIR_BASE/sub-wt" "$TMPDIR_BASE/super" "submodule linked worktree resolves to the superproject's .geniro/ like the submodule itself"
+rm -rf "$TMPDIR_BASE/super/.geniro"
+expect_root "$TMPDIR_BASE/sub-wt" "$TMPDIR_BASE/super/sub" "submodule linked worktree without any .geniro/ resolves to the submodule checkout"
+
+# 11b. --separate-git-dir: git lists the git dir as the main worktree; never return it.
+mkdir -p "$TMPDIR_BASE/sep"
+git init -q --separate-git-dir "$TMPDIR_BASE/sep-gitdir" "$TMPDIR_BASE/sep"
+expect_root "$TMPDIR_BASE/sep" "$TMPDIR_BASE/sep" "separate-git-dir checkout resolves to itself, not the git dir"
+
+# 12. Main checkout moved after a worktree was made: git fails in the worktree;
+# stdout is still the fallback path, stderr names the stale main, rc 0.
+mkdir -p "$TMPDIR_BASE/movable"
+( cd "$TMPDIR_BASE/movable" && git init -q \
+  && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init \
+  && git worktree add -q "$TMPDIR_BASE/movable-wt" -b wt 2>/dev/null )
+mv "$TMPDIR_BASE/movable" "$TMPDIR_BASE/movable-renamed"
+cd "$TMPDIR_BASE/movable-wt" || exit 1
+got=$(_geniro_repo_root 2>"$TMPDIR_BASE/stderr.txt"); rc=$?
+if [ "$rc" -eq 0 ] && [ "$got" = "$TMPDIR_BASE/movable-wt" ]; then
+  pass "moved main: stdout is the fallback path, rc 0"
+else
+  fail "moved main: expected '$TMPDIR_BASE/movable-wt' rc 0, got '$got' rc $rc"
+fi
+if grep -q "main checkout is missing at $TMPDIR_BASE/movable " "$TMPDIR_BASE/stderr.txt" \
+   && grep -q "git worktree repair $TMPDIR_BASE/movable-wt" "$TMPDIR_BASE/stderr.txt"; then
+  pass "moved main: stderr names the stale path and the fix"
+else
+  fail "moved main: stderr was '$(cat "$TMPDIR_BASE/stderr.txt")'"
+fi
+if [ "$(wc -l < "$TMPDIR_BASE/stderr.txt" | tr -d ' ')" -eq 1 ]; then
+  pass "moved main: exactly one stderr line"
+else
+  fail "moved main: stderr not one line"
+fi
+cd "$TMPDIR_BASE" || exit 1
 
 echo
 echo "Tests run:    $TESTS_RUN"

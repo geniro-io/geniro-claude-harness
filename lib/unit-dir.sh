@@ -2,10 +2,11 @@
 # Unit dir resolver: every human-facing artifact of one unit of work lives in
 # ONE folder, <PLANNING_ROOT>/<unit>/, next to spec.md and state.md.
 #
-# PLANNING_ROOT (_geniro_planning_root) = <root>/.geniro/planning, where root is
-#   the current worktree toplevel when .geniro/planning is not git-ignored
-#   (tracked or trackable, so it travels with its branch), else the primary worktree
-#   (_geniro_repo_root). Non-git: _geniro_repo_root.
+# PLANNING_ROOT (_geniro_planning_root) = <_geniro_repo_root>/.geniro/planning:
+#   always the main checkout, never a linked worktree.
+#
+# _geniro_state_dir <skill> [branch] prints <_geniro_repo_root>/.geniro/state/<skill>/<branch slug>
+#   (default: the current branch). Never creates it. No skill: prints nothing.
 #
 # _geniro_unit_dir [branch] prints the absolute unit dir for the branch (default:
 #   the current branch). Never creates it. First match wins:
@@ -56,13 +57,16 @@ if [ -z "${_UD_DEPS_LOADED:-}" ]; then
 fi
 
 _geniro_planning_root() {
-  local top
-  top="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-  if [ -n "$top" ] && ! git -C "$top" check-ignore -q .geniro/planning/_probe/state.md 2>/dev/null; then
-    printf '%s' "$top/.geniro/planning"
-    return 0
-  fi
   printf '%s' "$(_geniro_repo_root)/.geniro/planning"
+}
+
+_geniro_state_dir() {
+  local skill="${1-}" branch="${2-}" root
+  [ -n "$skill" ] || return 0
+  [ -z "$branch" ] && branch="$(git branch --show-current 2>/dev/null || true)"
+  root="$(_geniro_repo_root)" || true
+  [ -n "$root" ] || return 0
+  printf '%s' "$root/.geniro/state/$skill/$(_geniro_branch_slug "$branch")"
 }
 
 # One scan of every candidate file's first-frontmatter-block `branch:` value

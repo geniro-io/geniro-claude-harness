@@ -1691,6 +1691,118 @@ grep -q "Active task detected" <<<"$ac" \
   && pass "worktree gate: a run recorded in the main checkout still restores from its own linked worktree" \
   || fail "worktree gate: linked-worktree run should still resume from that worktree"
 
+# 23d-2. Session-bound state stored in MAIN, session cwd in the linked worktree.
+_sb_state() {  # <file> <branch> <worktree>
+  mkdir -p "$(dirname "$1")"
+  cat > "$1" <<EOS
+---
+tier: T1.5
+producer: debug
+schema-version: 1
+branch: $2
+worktree: $3
+timestamp: 2026-05-19T15:00:00Z
+phase: investigate
+status: in-progress
+non-resumable-actions: []
+---
+
+body
+EOS
+}
+main3="$(mktemp -d "$TMPDIR_BASE/main3.XXXXXXXXXX")"
+git -C "$main3" init -q
+git -C "$main3" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+wt3="$TMPDIR_BASE/wt3-linked"
+git -C "$main3" worktree add -q "$wt3" -b wt3-branch 2>/dev/null
+wt3_top="$(cd "$wt3" && git rev-parse --show-toplevel)"
+_sb_state "$main3/.geniro/state/debug/wt3-branch/state.md" wt3-branch "$wt3_top"
+cd "$wt3" || exit 1
+out=$(run_hook startup "$wt3")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+grep -q "Active task detected" <<<"$ac" && grep -q "$main3/.geniro/state/debug/wt3-branch/state.md" <<<"$ac" \
+  && pass "Tier 1b: session-bound state in main restores from the linked worktree" \
+  || fail "Tier 1b: main-stored session-bound state should restore from the linked worktree"
+grep -qF "looked up in the main checkout at $(cd "$main3" && pwd -P)/.geniro/" <<<"$ac" \
+  && pass "linked-worktree notice names the main checkout's .geniro/" \
+  || fail "linked-worktree notice should name the main checkout's .geniro/"
+
+# W3: independent git repo nested inside a Geniro project is not a linked worktree.
+nest="$(mktemp -d "$TMPDIR_BASE/nest.XXXXXXXXXX")"
+mkdir -p "$nest/.geniro" "$nest/inner"
+git -C "$nest/inner" init -q
+cd "$nest/inner" || exit 1
+ac=$(run_hook startup "$nest/inner" | jq -r '.hookSpecificOutput.additionalContext // ""')
+grep -qF "linked git worktree" <<<"$ac" \
+  && fail "nested independent repo must not get the linked-worktree notice" \
+  || pass "nested independent repo gets no linked-worktree notice"
+
+# W6: main-held Tier 1b state older than the staleness cutoff is not resumed.
+main6="$(mktemp -d "$TMPDIR_BASE/stale6.XXXXXXXXXX")"
+git -C "$main6" init -q
+git -C "$main6" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+wt6="$TMPDIR_BASE/stale6-wt"
+git -C "$main6" worktree add -q "$wt6" -b stale6-branch 2>/dev/null
+wt6_top="$(cd "$wt6" && git rev-parse --show-toplevel)"
+_sb_state "$main6/.geniro/state/debug/stale6-branch/state.md" stale6-branch "$wt6_top"
+cd "$wt6" || exit 1
+ac=$(run_hook startup "$wt6" | jq -r '.hookSpecificOutput.additionalContext // ""')
+grep -q "Active task detected" <<<"$ac" \
+  && pass "W6: fresh main-held Tier 1b state resumes" \
+  || fail "W6: fresh main-held Tier 1b state should resume"
+touch -t 202001010000 "$main6/.geniro/state/debug/stale6-branch/state.md"
+ac=$(run_hook startup "$wt6" | jq -r '.hookSpecificOutput.additionalContext // ""')
+grep -q "Active task detected" <<<"$ac" \
+  && fail "W6: abandoned main-held Tier 1b state must not resume" \
+  || pass "W6: abandoned main-held Tier 1b state is not resumed"
+
+# A main-stored candidate recording a DIFFERENT worktree is not a Tier 1b match.
+_sb_state "$main3/.geniro/state/debug/wt3-branch/state.md" wt3-branch "$TMPDIR_BASE/some-other-wt"
+out=$(run_hook startup "$wt3")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+grep -q "Active task detected" <<<"$ac" \
+  && fail "Tier 1b: main-stored candidate for a different worktree should not restore" \
+  || pass "Tier 1b: main-stored candidate for a different worktree is skipped"
+
+# Legacy ./.geniro/state inside the linked worktree still restores.
+rm -rf "$main3/.geniro/state"
+_sb_state "$wt3/.geniro/state/debug/wt3-branch/state.md" wt3-branch "$wt3_top"
+out=$(run_hook startup "$wt3")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+grep -q "Active task detected" <<<"$ac" \
+  && pass "Tier 1b: legacy state inside the linked worktree still restores" \
+  || fail "Tier 1b: legacy ./ state in the linked worktree should still restore"
+
+# Bare-hub layout: <hub>/.bare + <hub>/.git (gitdir: ./.bare); notice must appear.
+hub="$(mktemp -d "$TMPDIR_BASE/hub.XXXXXXXXXX")"
+git init -q --bare "$hub/.bare"
+printf 'gitdir: ./.bare\n' > "$hub/.git"
+git -C "$hub" -c user.email=t@t -c user.name=t commit-tree -m init "$(git -C "$hub" hash-object -t tree -w /dev/null)" > "$hub/.c" 2>/dev/null
+git -C "$hub" update-ref refs/heads/main "$(cat "$hub/.c")" 2>/dev/null
+rm -f "$hub/.c"
+git -C "$hub" worktree add -q "$hub/wt" -b hub-branch main 2>/dev/null
+mkdir -p "$hub/.geniro"
+cd "$hub/wt" || exit 1
+out=$(run_hook startup "$hub/wt")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+grep -q "runs in a linked git worktree" <<<"$ac" \
+  && pass "bare-hub worktree gets the linked-worktree notice" \
+  || fail "bare-hub worktree should get the linked-worktree notice"
+
+# Moved main: the worktree's .git file points at a gitdir that no longer exists.
+mv3="$(mktemp -d "$TMPDIR_BASE/mv3.XXXXXXXXXX")"
+git -C "$mv3" init -q
+git -C "$mv3" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+mvwt="$TMPDIR_BASE/mv3-linked"
+git -C "$mv3" worktree add -q "$mvwt" -b mv3-branch 2>/dev/null
+mv "$mv3" "$mv3.moved"
+cd "$mvwt" || exit 1
+out=$(run_hook startup "$mvwt" 2>/dev/null)
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+grep -q "git worktree repair" <<<"$ac" \
+  && pass "moved main: notice tells the model to run git worktree repair" \
+  || fail "moved main: expected a git worktree repair notice"
+
 # 23e. Branch matches, but the candidate's recorded `worktree:` path no
 #      longer exists on disk at all (the worktree was removed, not just
 #      differs) → treated as a mismatch, same as an existing-but-different
@@ -1754,16 +1866,27 @@ grep -qF -- "- $main_top/.geniro/instructions/global.md" <<<"$ac" \
 grep -qF "linked git worktree" <<<"$ac" \
   && pass "worktree: context says .geniro/ lives in the main checkout" \
   || fail "worktree: context should name the main checkout as .geniro/'s home"
-grep -qF -- "- .geniro/instructions/code-style.md" <<<"$ac" \
-  && pass "worktree: file absent everywhere keeps its relative path" \
-  || fail "worktree: absent code-style.md should stay relative"
+grep -qF -- "- $main_top/.geniro/instructions/code-style.md" <<<"$ac" \
+  && pass "worktree: file absent everywhere is still listed at its main-checkout path" \
+  || fail "worktree: absent code-style.md should resolve under the main checkout"
 
 ac=$(run_hook startup "$main" | jq -r '.hookSpecificOutput.additionalContext // ""')
-if grep -qF -- "- .geniro/instructions/global.md" <<<"$ac" && ! grep -qF "linked git worktree" <<<"$ac"; then
-  pass "main checkout: cwd copy stays relative, no worktree note"
+if grep -qF -- "- $main_top/.geniro/instructions/global.md" <<<"$ac" && ! grep -qF "linked git worktree" <<<"$ac"; then
+  pass "main checkout: global.md listed at its main-checkout path, no worktree note"
 else
-  fail "main checkout: expected a relative global.md and no worktree note"
+  fail "main checkout: expected the main-checkout global.md path and no worktree note"
 fi
+
+# A worktree with its own tracked copy of the same file: main's copy is listed.
+mkdir -p "$wt/.geniro/instructions"
+echo '# Branch-local' > "$wt/.geniro/instructions/global.md"
+ac=$(run_hook startup "$wt" | jq -r '.hookSpecificOutput.additionalContext // ""')
+grep -qF -- "- $main_top/.geniro/instructions/global.md" <<<"$ac" \
+  && pass "worktree: its own tracked global.md does not shadow the main checkout's" \
+  || fail "worktree: global.md should still resolve to $main_top/.geniro/instructions/global.md"
+grep -qF -- "- $wt/.geniro/instructions/global.md" <<<"$ac" \
+  && fail "worktree: its own copy must not be listed" \
+  || pass "worktree: its own copy is not listed"
 
 # ---------------------------------------------------------------------------
 # T4-62g — CLAUDE_PLUGIN_ROOT unset must not fall back to the PROJECT cwd

@@ -48,7 +48,7 @@ The `## Termination reason` body section is written on `aborted` / `reverted` / 
 
 ## 2. State file schema
 
-### state.md (T1.5 — session-bound durable, `.geniro/state/refactor/<slug>/state.md`)
+### state.md (T1.5 — session-bound durable, `<STATE_DIR>/state.md`)
 
 Frontmatter:
 
@@ -136,4 +136,4 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 """, description="Review: refactor diff")
 ```
 
-**Custom reviewers (Medium and Big only — same gate):** With `PRIMARY_ROOT` resolved as in `phase-3-verify.md` §3.2, run the dual glob (cwd `.geniro/instructions/review-extra/*.md` + `<PRIMARY_ROOT>/.geniro/instructions/review-extra/*.md`) first and read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` only when it returns at least one file — the common case has none and skips both the Read and the spawns. Pass the refactor's changed-files list as `CHANGED_FILES`; append each returned spawn-spec to the SAME parallel batch as the independent reviewer above, and let the findings flow through the same disposition logic. If the helper aborts on its hard cap, surface the error and skip; do not proceed with review.
+**Custom reviewers (Medium and Big only — same gate):** With `PRIMARY_ROOT` resolved as in `phase-3-verify.md` §3.2, glob `<PRIMARY_ROOT>/.geniro/instructions/review-extra/*.md` first and read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` only when it returns at least one file — the common case has none and skips both the Read and the spawns. Pass the refactor's changed-files list as `CHANGED_FILES`; append each returned spawn-spec to the SAME parallel batch as the independent reviewer above, and let the findings flow through the same disposition logic. If the helper aborts on its hard cap, surface the error and skip; do not proceed with review.

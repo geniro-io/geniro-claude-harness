@@ -39,7 +39,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 | Edge-case authored tests | 10 per run | same | Stop authoring; surface the tests kept so far |
 | Edge-case consecutive discards | 5 consecutive | same | Stop hypothesis generation; surface partial |
 
-**Architecture constraint (design intent, not budget):** the Phase 1 knowledge-retrieval + codebase-explorer pair is a fixed spawn set, not size-scaled (skip conditions per `SKILL.md` §Anti-rationalization; store-empty gate at `phase-1-analyze.md` Step 7). The Phase 3 Round 1 reviewer grid scales by `change_scope` — the tier-to-dimension mapping is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-grid-scaling.md`; the resolved set is always announced to the user and recorded in `spawn_dims_declared[]` before firing, plus any custom dimensions from `.geniro/instructions/review-extra/` (path-filtered and capped per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 6).
+**Architecture constraint (design intent, not budget):** the Phase 1 knowledge-retrieval + codebase-explorer pair is a fixed spawn set, not size-scaled (skip conditions per `SKILL.md` §Anti-rationalization; store-empty gate at `phase-1-analyze.md` Step 7). The Phase 3 Round 1 reviewer grid scales by `change_scope` — the tier-to-dimension mapping is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-grid-scaling.md`; the resolved set is always announced to the user and recorded in `spawn_dims_declared[]` before firing, plus any custom dimensions from `.geniro/instructions/review-extra/` (path-filtered and capped per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 5).
 
 ---
 

@@ -53,7 +53,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 
 1. **Inline execution** — `/geniro:actions` runs entirely in the orchestrator; no subagents are spawned in any mode.
 2. **Invariant #2 (args validated)** — every write is previewed as a draft and gated by a frontmatter-validation step (the `create` path validates at its validation gate, just after the draft is written).
-3. **Invoking authorizes execution** — this replaces invariant #3 (permission before side-effect) on the `run` path only: `run` fires the action's steps directly regardless of `risk_class` (Phase 4.2). Four WAIT points survive today, because none of them re-asks "are you sure you want to run this?": the cross-worktree confirmation (§Target resolution Step 2 — "use the copy from another worktree?"), the free-text picker (§Target resolution Step 3 — "which action?"), the one-time scope checkpoint when the run edits outside what the action declares (Phase 4.3), and any `[AUQ]`/`## Confirm:` checkpoint the action author placed inside the body — this is the exception list to the no-confirm contract, not a ceiling on it, and any further pause is still routed through `AskQuestion`, never plain-text prose, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions. `create` / `edit` / `delete` stay AUQ-gated under #3.
+3. **Invoking authorizes execution** — this replaces invariant #3 (permission before side-effect) on the `run` path only: `run` fires the action's steps directly regardless of `risk_class` (Phase 4.2). Three WAIT points survive today, because none of them re-asks "are you sure you want to run this?": the free-text picker (§Target resolution Step 3 — "which action?"), the one-time scope checkpoint when the run edits outside what the action declares (Phase 4.3), and any `[AUQ]`/`## Confirm:` checkpoint the action author placed inside the body — this is the exception list to the no-confirm contract, not a ceiling on it, and any further pause is still routed through `AskQuestion`, never plain-text prose, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions. `create` / `edit` / `delete` stay AUQ-gated under #3.
 4. **Invariant #7 (errors → structured observations)** — there is no state file here, so errors surface inline in the final message.
 
 ## Anti-rationalization
@@ -119,7 +119,7 @@ The non-verb portion of `$ARGUMENTS` is parsed differently for `create` vs `run`
 
 ### Ambiguity resolution
 
-**Bare-slug fast path.** If `$ARGUMENTS` is non-empty AND no recognized verb was detected AND the entire `$ARGUMENTS` exact-matches an existing action file (literal or kebab-normalized: `daily recap` → `daily-recap`), default to `run` with that resolved slug. Typing a known slug IS the answer to "what do you want to do?"; re-asking would violate "skip questions already answered". The cross-worktree confirmation in §Target resolution Step 2 still fires.
+**Bare-slug fast path.** If `$ARGUMENTS` is non-empty AND no recognized verb was detected AND the entire `$ARGUMENTS` exact-matches an existing action file (literal or kebab-normalized: `daily recap` → `daily-recap`), default to `run` with that resolved slug. Typing a known slug IS the answer to "what do you want to do?"; re-asking would violate "skip questions already answered".
 
 **Otherwise** AUQ the verb:
 
@@ -160,4 +160,4 @@ Once the sub-command is resolved, **Read its body file** (`${CLAUDE_PLUGIN_ROOT}
 
 ## Phase 7: `validate` sub-command
 
-**On dispatch, Read `${CLAUDE_PLUGIN_ROOT}/skills/actions/subcommand-validate.md`** — it carries the Steps: resolve scope (single file or the whole deduped registry), run the shared validation gate per file plus the validate-only rows, and print the report. Read-only; never mutates.
+**On dispatch, Read `${CLAUDE_PLUGIN_ROOT}/skills/actions/subcommand-validate.md`** — it carries the Steps: resolve scope (single file or the whole registry), run the shared validation gate per file plus the validate-only rows, and print the report. Read-only; never mutates.

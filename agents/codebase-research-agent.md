@@ -36,7 +36,7 @@ The orchestrating skill passes you these pre-resolved slots:
 | `PROJECT SEARCH POLICY` | recommended | The project's rules for how to search this codebase, verbatim, or `none declared`. |
 | `SCOPE_HINT` | recommended | Path globs / module names / file lists that bound where you look. Absence = scan the whole repo; presence narrows. Example: `["apps/web/src/features/case-radar/**", "apps/api/src/events/**"]`. |
 | `PRE_INLINED_CONTEXT` | optional | File excerpts the orchestrator already read and wants you to use as starting context. Do not re-Read these files unless you need additional lines beyond what was inlined. |
-| `OUTPUT_PATH` | yes | Absolute path where you write the report (typically `<task-dir>/.research-out.md` or `.geniro/state/<skill>/<slug>/.research-out.md`). |
+| `OUTPUT_PATH` | yes | Absolute path where you write the report (typically `<task-dir>/.research-out.md` or `<main checkout>/.geniro/state/<skill>/<slug>/.research-out.md`). |
 | `RETURN` | optional | `path + summary`: final message is OUTPUT_PATH plus the Summary for Orchestrator section. |
 | `THOROUGHNESS` | optional | `quick` (single targeted lookup, ~5-10 Grep/Read calls) / `medium` (default, ~15-30 calls) / `very thorough` (comprehensive sweep across unusual locations, ~30-60 calls). Defaults to `medium` if absent. Caps `maxTurns` budget consumption. |
 

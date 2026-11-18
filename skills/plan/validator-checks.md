@@ -47,7 +47,7 @@ Each script row carries its own finding text and `fix_hint`; this table records 
 | 8 | `verify_command_nonempty` | Every `verify:` in section 9 has a non-empty command after it. |
 | 10 | `placeholder_scan` | The body (frontmatter is out of scope) carries no `TODO` / `XXX` / `FIXME` / `<placeholder>` / `[fill in]` / bare `...`. |
 | 11 | `schema_completeness` | Every required header is present with its exact `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` text, with no top-level section beyond them and the optional `## Considered Alternatives` / `## Milestones`. |
-| 12 | `workflow_refs_consistency` | Skipped on `m5-v1` or without `workflow_refs:`; missing required fields fail. A workflow file absent from cwd and the primary worktree (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A) only warns — it may appear later. |
+| 12 | `workflow_refs_consistency` | Skipped on `m5-v1` or without `workflow_refs:`; missing required fields fail. A workflow file absent from the main checkout (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A) only warns — it may appear later. |
 | 13 | `launch_config_consistency` | Skipped when `launch_config:` is absent; otherwise its keys hold enum values (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`), shape-only. |
 | 14 | `effort_tier` | Lowercase `trivial` / `small` / `medium` / `big`. Phase 5 milestone-mode and `source_materials`' per-tier threshold both read it, so an absent or miscased value relaxes both silently. |
 

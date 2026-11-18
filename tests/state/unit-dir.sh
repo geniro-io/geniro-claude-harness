@@ -103,7 +103,25 @@ new_repo tracked
 wt="$TMPDIR_BASE/linked-tracked"
 git worktree add -q "$wt" -b feat/in-wt
 wt="$(cd "$wt" && pwd -P)"
-check "planning root from linked worktree with tracked planning is its own toplevel" "$(cd "$wt" && _geniro_planning_root)" "$wt/.geniro/planning"
+check "planning root from linked worktree with tracked planning is still the primary" "$(cd "$wt" && _geniro_planning_root)" "$REPO/.geniro/planning"
+
+new_repo
+check "state dir for a named branch" "$(_geniro_state_dir debug feat/My_Branch)" "$REPO/.geniro/state/debug/feat-my-branch"
+git checkout -q -b feat/cur
+check "state dir defaults to the current branch" "$(_geniro_state_dir resolve)" "$REPO/.geniro/state/resolve/feat-cur"
+check "state dir with no skill prints nothing" "$(_geniro_state_dir)" ""
+if [ ! -e "$REPO/.geniro/state" ]; then pass "state dir is never created"; else fail "state dir was created"; fi
+git checkout -q --detach
+got="$(_geniro_state_dir debug)"
+case "$got" in
+  "$REPO/.geniro/state/debug/detached-"*) pass "state dir on detached HEAD uses detached-<sha>" ;;
+  *) fail "state dir on detached HEAD (got '$got')" ;;
+esac
+git checkout -q feat/cur
+wt="$TMPDIR_BASE/linked-state"
+git worktree add -q "$wt" -b feat/state-wt
+wt="$(cd "$wt" && pwd -P)"
+check "state dir from a linked worktree lands in main" "$(cd "$wt" && _geniro_state_dir debug)" "$REPO/.geniro/state/debug/feat-state-wt"
 
 nogit="$(mktemp -d "$TMPDIR_BASE/nogit.XXXXXX")"
 got="$(cd "$nogit" && _geniro_planning_root)"

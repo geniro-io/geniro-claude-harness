@@ -48,6 +48,8 @@
 | T3 append-only JSONL (`.geniro/knowledge/learnings.jsonl`) | `atomic_state_append` only — except a locked whole-file rewrite that mutates an existing line (e.g. flipping `deprecated: true` on prune/archive), which is program-produced content and routes through `atomic_state_write_cmd` under the shared knowledge-rewrite lock |
 | T1 ephemeral transient outputs (canonical list: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T1 — e.g. `.kr-out.md`, `.research-*.md`, `notes.md`) | Plain `Write` — no frontmatter, no atomicity requirement, deleted at the owning run's terminal exit |
 
+A relative `.geniro/…` target resolves to `<main>/.geniro/…` (the main checkout, even from a linked worktree); an absolute path is used as given.
+
 Write `.geniro/` state paths through these helpers, not the built-in `Write`/`Edit` tools or a shell redirect — each of those truncates and rewrites in place, so a reader during that window sees a partial file. No hook checks this; it is a contract the writer keeps.
 
 ---

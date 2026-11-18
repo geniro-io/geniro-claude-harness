@@ -11,13 +11,12 @@ A subagent starts with **no orchestrator context** — only its spawn prompt. Th
 
 A project may ship none of these — an absent file is the normal case, not an error. Skip it silently.
 
-## How to resolve each file (first hit wins)
+## How to resolve each file
 
 You have Bash, so resolve the path yourself:
 
 1. If `$GENIRO_INSTRUCTIONS_DIR` (or `$CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR`; `$GENIRO_INSTRUCTIONS_DIR` wins when both are set) points to a directory, read `<that-dir>/<file>` (expand a leading `~` to `$HOME`; confirm the dir exists). This is the external-instructions override.
-2. Otherwise read `.geniro/instructions/<file>` from the current working directory.
-3. On file-not-found, retry `<PRIMARY_ROOT>/.geniro/instructions/<file>`, where `PRIMARY_ROOT` comes from the Mode A snippet in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` — this mirrors the orchestrator's loader fallback so a stale-cwd linked worktree still sees the project's rules.
+2. Otherwise read `<PRIMARY_ROOT>/.geniro/instructions/<file>` only, where `PRIMARY_ROOT` comes from the Mode A snippet in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` — the same single source the orchestrator's loader reads.
 
 The orchestrator may have pre-inlined `code-style.md`'s whole content as a `CODE-STYLE INSTRUCTIONS:` labeled slot in your prompt. A whole-file slot and the on-disk file are the same source (the file is authoritative, the slot is a context-saving copy), so when the slot is present, skip that file's read.
 

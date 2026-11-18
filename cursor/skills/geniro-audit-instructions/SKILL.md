@@ -28,7 +28,7 @@ You are the audit orchestrator. The target is every AI-assistant instruction fil
 2. **Phase 1 — Mechanical pre-pass.** Run the deterministic battery (surface discovery, cited paths, frontmatter validity, legacy formats, candidate extraction). Output: machine findings + candidate lists seeding the reviewers.
 3. **Phase 2 — Parallel dimension reviewers.** Spawn one reviewer per selected dimension in ONE response, within the §Budgets spawn cap.
 4. **Phase 3 — Merge, verify, filter.** Dedupe, count convergence, re-read every cited line, drop unverifiable and do-not-flag items, assign tiers.
-5. **Phase 4 — Report.** Write `.geniro/state/audit-instructions/report-<YYYY-MM-DD>.md` (health summary → tier tables → per-dimension verdicts → highest-value fix) and render every finding in chat.
+5. **Phase 4 — Report.** Write `<main>/.geniro/state/audit-instructions/report-<YYYY-MM-DD>.md` (health summary → tier tables → per-dimension verdicts → highest-value fix) and render every finding in chat.
 6. **Phase 5 — Action gate.** AskQuestion: fix now / pick / report only. Approved fixes go to fix agents with disjoint file allowlists, then the mechanical battery re-runs to verify. Cleanup + commit offer.
 
 **Phase bodies — Read on entry to that phase.** Phases 0-2 run from this file. Phases 3-5 carry their Steps in siblings, and this table is where a resumed run finds them: only a skill's front-loaded prefix survives compaction, so a pointer that lives beside its own phase section is gone exactly when a resume needs it.
@@ -94,7 +94,7 @@ Reviewers and fix agents are `subagent_type="generalPurpose"` with the rubric pa
    - A tool keyword (`claude`, `cursor`, `copilot`, `agents`, `windsurf`, `cline`, `gemini`, `aider`, `junie`, `zed`, `amazonq`, `geniro`) → restrict to that tool's surfaces per the reference §Surface inventory row.
    - A dimension name (`accuracy`, `consistency`, `bloat`, `structure`, `coverage`) → spawn that reviewer, plus the Phase 1 battery (which always runs) and the bloat sweep (the subtraction-sweep invariant) unless `bloat` already names it.
 3. **Load the rubric:** Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/dimensions-reference.md` in full — Phase 2 pastes its sections into every reviewer prompt verbatim. Also read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` — the shared reviewer schema pasted into every prompt, and the Phase 5 fix-round discipline.
-4. **Read the prior report, if any:** Glob `.geniro/state/audit-instructions/report-*.md`; read the most recent one's health summary and T0-T2 tier tables. Patterns its health summary endorses extend the do-not-flag list for this run, and its T0-T2 rows enter the Phase 3 merge tagged "still open?". `.geniro/state/` is gitignored, so this finds reports from prior runs on this machine only — a teammate's audit leaves no trace here, and finding nothing means "no local prior report", never "never audited".
+4. **Read the prior report, if any:** Glob `<main>/.geniro/state/audit-instructions/report-*.md` (`<main>`: Phase 4 report path); read the most recent one's health summary and T0-T2 tier tables. Patterns its health summary endorses extend the do-not-flag list for this run, and its T0-T2 rows enter the Phase 3 merge tagged "still open?". `.geniro/state/` is gitignored and lives in the main checkout, so this finds reports from prior runs on this machine — a teammate's audit leaves no trace here, and finding nothing means "no local prior report", never "never audited".
 5. **Build the inventory and write the state checkpoint** per the reference §Run setup — enumerate the §Surface inventory globs, record what exists (with word counts and per-tool activity signals), and checkpoint after every phase.
 
 ## PHASE 1 — Mechanical pre-pass (orchestrator-inline)
@@ -114,7 +114,7 @@ If `--quick`: adjudicate the secret and unsafe-directive candidates yourself, pe
 
 Spawn the selected reviewers in ONE response. Each prompt is self-contained — reviewers must not need to discover their own rubric. The spawn template, per-dimension paste notes, and the sharding rule are in the reference §Reviewer spawn template — you already have that file open from Phase 0.
 
-Collect all outputs. If a reviewer returns prose instead of the table, re-spawn once with "return only the table"; on second failure, salvage what parses and note the gap in the report. Persist each reviewer's table to `.geniro/state/audit-instructions/<slug>/findings-<reviewer>.md` via `atomic_state_write` (source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`), where `<reviewer>` is the spawn's unique label (`D2`...`D6`, `D4-shardA`/`D4-shardB`) so no two spawns share a filename. Record the paths in the checkpoint — this is what makes resume after compaction possible without re-spawning, and what the Phase 5 cleanup deletes.
+Collect all outputs. If a reviewer returns prose instead of the table, re-spawn once with "return only the table"; on second failure, salvage what parses and note the gap in the report. Persist each reviewer's table to `<STATE_DIR>/findings-<reviewer>.md` via `atomic_state_write` (source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`), where `<reviewer>` is the spawn's unique label (`D2`...`D6`, `D4-shardA`/`D4-shardB`) so no two spawns share a filename. Record the paths in the checkpoint — this is what makes resume after compaction possible without re-spawning, and what the Phase 5 cleanup deletes.
 
 ## PHASE 3 — Merge, verify, filter
 
@@ -122,7 +122,7 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 
 ## PHASE 4 — Report
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-4-report.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — the report structure (written to `.geniro/state/audit-instructions/report-<YYYY-MM-DD>.md`, outside the slug dir so it survives cleanup and seeds the next run) and the render-every-finding-to-chat contract that is the Phase 5 decision context. Read it again on any resumption of the phase, including after a compaction. Phase complete when the dated report exists and every kept finding is rendered in chat.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-4-report.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — the report structure (written to `<main>/.geniro/state/audit-instructions/report-<YYYY-MM-DD>.md`) and the render-every-finding-to-chat contract that is the Phase 5 decision context. Read it again on any resumption of the phase, including after a compaction. Phase complete when the dated report exists and every kept finding is rendered in chat.
 
 ## PHASE 5 — Action gate
 
@@ -130,7 +130,7 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 
 ## State recovery
 
-On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules, Glob `.geniro/state/audit-instructions/<slug>/state.md`. If present: source `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` and run `validate_state_file` on it — on failure fire the recovery AskQuestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` instead of consuming a corrupt file. On pass, run the helper §Consumer contract (Case A/B/C/D mismatch handling), then resume from the next incomplete phase — reviewers whose `findings-<reviewer>.md` exists don't need re-spawning; missing ones do.
+On skill start: resolve `STATE_DIR="$(source "${CLAUDE_PLUGIN_ROOT}/lib/unit-dir.sh" && _geniro_state_dir audit-instructions)"`, Glob `<STATE_DIR>/state.md`. If present: source `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` and run `validate_state_file` on it — on failure fire the recovery AskQuestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` instead of consuming a corrupt file. On pass, run the helper §Consumer contract (Case A/B/C/D mismatch handling), then resume from the next incomplete phase — reviewers whose `findings-<reviewer>.md` exists don't need re-spawning; missing ones do.
 
 ## Definition of done
 

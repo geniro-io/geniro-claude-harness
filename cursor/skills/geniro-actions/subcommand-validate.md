@@ -10,9 +10,9 @@ Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Ph
 
 ### Step 1 — Resolve scope
 
-When validating all actions (no `<slug>` provided), build the registry per `${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md` §Target resolution Step 1 (dual-glob local + main-worktree, deduped, `local` wins, source-tagged). Without this, validate run from a linked worktree misses primary-worktree actions and produces a false-pass.
+When validating all actions (no `<slug>` provided), build the registry per `${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md` §Target resolution Step 1 (the main checkout's `.geniro/actions/`).
 
-If `<slug>` provided: resolve via §Target resolution Steps 1-3 to get `<resolved-path>` and `<source>`, then validate only that single file. Else validate the deduped union from the dual-glob above. Read-only; never mutates.
+If `<slug>` provided: resolve via §Target resolution Steps 1-3 to get `<resolved-path>`, then validate only that single file. Else validate every registry entry. Read-only; never mutates.
 
 ### Step 2 — Lint rule set
 
@@ -34,10 +34,10 @@ $ /geniro:actions validate
 
 Validation results: 3 actions checked, 1 issue found.
 
-✓ daily-recap.md (local) no issues
-⚠ slack-release-ping.md (main-worktree) 1 HIGH
+✓ daily-recap.md no issues
+⚠ slack-release-ping.md 1 HIGH
 └── Line 4: risk_class missing — REQUIRED field
-✓ commit-and-pr-summary.md (local) no issues
+✓ commit-and-pr-summary.md no issues
 
 To fix: /geniro:actions edit slack-release-ping
 ```
