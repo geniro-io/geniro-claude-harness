@@ -29,11 +29,11 @@ Seeds: Phase 1 findings, past learnings, code-style rules. Root = the feature; b
 
 **Glossary file.** When the repo already has one — `GLOSSARY.md` at the root, or a glossary file CLAUDE.md points to — also write each resolved term into it right after the user's answer, one entry per term in the file's existing format, else `**Term**: one or two sentences saying what it IS, not what it does. _Avoid_: synonyms.`; edit a term already listed in place. Only project-specific terms, and the file stays a glossary — no implementation details. At the first write, run `git status --porcelain -- <file>` and log the file in `## Tool log` as clean or already modified (untracked counts); §8.4 commits it only when clean before.
 
-Phase 3 never edits source; outside the planning task-dir its only writes are those glossary entries and the §3.4 ADR files.
+Phase 3 never edits source; outside the task-dir it writes only those glossary entries and the §3.4 ADR files.
 
 **Scope edge.** One branch asks whether the full scope is the right scope: the part carrying most of the value, a strict subset, an existing mechanism or configuration that already meets the need. A reduced scope feeds Phase 4 §4.1. When the honest answer is "build nothing", confirm with the user, run the §9.2 transient cleanup (`clean_task_transients`, `loop-phase-9-handoff.md`), walk `loop-definition-of-done.md` §Abort-path subset, write the terminal `phase: aborted` with a `## Termination reason`, and report it as a decision the planning reached, not a cancelled run.
 
-**Grill early during the explore wait.** While the §1.2 explore agents run in the background, ask only the code-independent branches (past learnings, code-style rules, generic scope edges) — Shape A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md` — and hold the rest until the §1.5 drain. Persist early answers to `approvals[]`; never re-ask them.
+**Grill early during the explore wait.** While the §1.2 explore agents run in the background, ask only the code-independent branches (past learnings, code-style rules, generic scope edges) — Shape A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md` — and hold the rest until the §1.5 drain, under the gate in §1.2. Persist early answers to `approvals[]`; never re-ask them.
 
 **Seed from the conversation.** List a decision already settled this session for confirmation instead of asking it; a correction reopens it.
 

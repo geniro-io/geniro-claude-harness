@@ -126,7 +126,7 @@ The load-bearing exit gates — skipping any makes the answer unsound or the no-
 
 $ARGUMENTS
 
-**If `$ARGUMENTS` is empty**, use the `AskQuestion` tool with header "Subject" and question "What kind of investigation, and about what?" with options "Trace how a feature works" / "Explain why a decision was made" / "Assess the risk of a change" / "Compare two approaches" — each answer must name the actual feature, decision, or area, not just the shape. Do not proceed until a subject is named.
+An empty `$ARGUMENTS` fires the Subject question at Phase 1 Step 0.5.
 
 ## Phase 1: Classify+Scope
 
@@ -170,4 +170,4 @@ T1.5 state.md path `<STATE_DIR>/state.md`, with `STATE_DIR` resolved per the tax
 
 ## State recovery
 
-On skill start: resolve `<STATE_DIR>` (taxonomy reference §1), Glob `<STATE_DIR>/state.md`. If present: source `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` and run `validate_state_file` on it — on failure fire the recovery AskQuestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` instead of consuming a corrupt file. On pass, run the helper §Consumer contract (Case A/B/C/D mismatch handling) — a same-cwd resume against a different branch's state file otherwise consumes it silently — then resume from the next incomplete phase.
+At Phase 1 Step 0.5: resolve `<STATE_DIR>` (taxonomy reference §1), Glob `<STATE_DIR>/state.md`. If present: source `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` and run `validate_state_file` on it — on failure fire the recovery AskQuestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` instead of consuming a corrupt file. On pass, run the helper §Consumer contract (Case A/B/C/D mismatch handling) — a same-cwd resume against a different branch's state file otherwise consumes it silently — then resume from the next incomplete phase.

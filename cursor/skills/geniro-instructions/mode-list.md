@@ -18,6 +18,8 @@ A listing that comes back empty from a linked worktree means the main checkout h
 
 ### Step 2 — Present results
 
+For a where-can-I-add or what-can-I-customize request, first Read `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §5 and show it as one plain line per insertion point: scope, block or anchor, when it takes effect.
+
 If empty:
 
 ```

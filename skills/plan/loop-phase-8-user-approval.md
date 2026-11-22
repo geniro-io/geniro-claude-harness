@@ -19,7 +19,7 @@ State.md `phase: user-approve` during this phase.
 
 **Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: plan`, `LOAD_TIER: pipeline`, `MODE: refresh`. Re-Read all files and echo per the helper's contract.
 
-The nearest prior load site is Phase 6 (§6.0), itself a refresh of Phase 1 (§1.1). §8.6 below executes any user-authored `### After user-approve` block from this load — that block has to be the one currently on disk, not the one read before validation and the spec challenge.
+The nearest prior load site is Phase 6 (§6.0), itself a refresh of the Phase 0 load. §8.6 below executes any user-authored `### After user-approve` block from this load — that block has to be the one currently on disk, not the one read before validation and the spec challenge.
 
 ### 8.1 Approval gate — closure
 

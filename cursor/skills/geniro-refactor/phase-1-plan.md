@@ -33,7 +33,7 @@ Set `STATE_DIR="$(source "${CLAUDE_PLUGIN_ROOT}/lib/unit-dir.sh" && _geniro_stat
 
 On Phase 1 entry, in order:
 
-1. **Refresh custom instructions** — apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: refactor`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
+1. **Load custom instructions** — apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: refactor`, `LOAD_TIER: pipeline`, `MODE: initial-load`; echo per the helper's contract.
 2. **Load project snapshot** — `source "${CLAUDE_PLUGIN_ROOT}/lib/load-semantic.sh" && load_semantic`; default top-2 (`_project.md` + `_CODEBASE_MAP.md`).
 3. **Query past learnings** — `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --tag <inferred from $ARGUMENTS> --limit 5` (tag only: `--scope` never matches a task path) for prior discoveries about coupling, pitfalls, and conventions relevant to the refactor scope — routed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override". Then always run a second file query, merging any backend matches, for the patterns earlier runs marked intentional — `--type user_rejected_suggestion --tag refactor_intentional --limit 10`, not the inferred tags (a recorded pattern spans files). Carry the intentional set to §1.5.
 4. **Reconcile custom instructions, snapshot and past learnings** — `resolve-conflicts` with all three loaded; precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict. Echo lines from each loader are mandatory per its §Echo contract.

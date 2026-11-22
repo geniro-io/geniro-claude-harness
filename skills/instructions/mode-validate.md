@@ -45,7 +45,7 @@ validate_instructions_file "<target-path>" "<scope>" "<max-lines-from-Step-1>"
 |---|---|---|
 | A reference to a dropped skill — list at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/dropped-skills.md` §The list, the canonical home | HIGH | script, `dropped-skill-reference` |
 | A reference to a dropped phase name (e.g., "Phase 4 (Implement)" — not a value in the current per-skill phase enums) | MEDIUM | hand-run |
-| `Additional Steps` subsections match the scope's legal anchor(s) in `instructions-authoring-reference.md` §5 — a real phase with no read site is rejected the same as a dropped one, and so is any `### Before <phase>` subsection (no skill reads that prefix) | MEDIUM | script, `anchor-illegal` |
+| `Additional Steps` subsections match the scope's anchor(s) the insertion-point catalogue (`instructions-authoring-reference.md` §5) grants — a real phase with no read site is rejected the same as a dropped one, and so is any `### Before <phase>` subsection (no skill reads that prefix) | MEDIUM | script, `anchor-illegal` |
 | An `Additional Steps` subsection with no `After <phase>` / `Before <phase>` shape at all (free-form) | LOW | script, `anchor-freeform` |
 
 **Per-scope checks:**

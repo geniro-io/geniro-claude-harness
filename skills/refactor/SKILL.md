@@ -182,7 +182,7 @@ Do not run `git add`, `git commit`, `git push` or `gh pr create`; the orchestrat
 
 | Phase | Helper | Direction | MODE |
 |---|---|---|---|
-| Phase 1 entry | `load-custom-instructions` | read L4 | `refresh` |
+| Phase 1 entry | `load-custom-instructions` | read L4 | `initial-load` |
 | Phase 1 entry | `load-semantic` | read L3 | n/a |
 | Phase 1 entry | `query-learnings` | read L2 | n/a |
 | Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a |

@@ -23,7 +23,7 @@ You are an autonomous executor. Consume an externally-provided spec (or inline t
 
 **Phases:**
 
-1. **Analyze (Phase 1)** — workspace setup; spec source (spec.md / plan.md / DESIGN_DOC frontmatter, else inline-task fallback); custom-instruction + project-snapshot loads; the knowledge-retrieval + codebase-explorer spawn pair; the handoff open-questions gate; a spec fact-check before any edit.
+1. **Analyze (Phase 1)** — custom-instruction load; workspace setup; spec source (spec.md / plan.md / DESIGN_DOC frontmatter, else inline-task fallback); project-snapshot load; the knowledge-retrieval + codebase-explorer spawn pair; the handoff open-questions gate; a spec fact-check before any edit.
 2. **Implement (Phase 2)** — sequential todo-list decomposition; a pre-change screenshot of any UI surface; disjoint-file-set todo groups delegated in parallel by default, coupled work inline; one end-of-phase suite run via `test-runner-agent`; bounded fix loop → escalate-AUQ.
 3. **Self-review + Ship (Phase 3)** — parallel reviewer-agents for the `change_scope`-scaled grid plus any custom dimensions; an inline edge-case test-authoring pass; bounded fix loop; the pre-ship minor-findings and test-quality gates; then the ship sub-step (visual verification, ship-mode AUQ, learnings).
 

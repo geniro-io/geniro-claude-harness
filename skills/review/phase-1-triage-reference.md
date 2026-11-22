@@ -24,7 +24,7 @@ State.md `phase: triage` during this phase.
 
 ## 0. Step 0 — Workspace setup
 
-Step 0 fires BEFORE input-mode detect, scope resolution, PR-ref parsing, the tracker fetch, the peer-PR scout, and the memory-helper calls: the workspace decides which working tree the rest of Phase 1 inspects, and PR-diff parsing or a peer-PR `gh pr list` run against the wrong one pollutes state.md with cwd-bound results. Order: read prior approvals (0-pre), detect passively (0a), decide (0b), persist (0c), execute (0d).
+After the §6 load, Step 0 fires BEFORE input-mode detect, scope resolution, PR-ref parsing, the tracker fetch, the peer-PR scout, and the remaining memory-helper calls: the workspace decides which working tree the rest of Phase 1 inspects, and PR-diff parsing or a peer-PR `gh pr list` run against the wrong one pollutes state.md with cwd-bound results. Order: read prior approvals (0-pre), detect passively (0a), decide (0b), persist (0c), execute (0d).
 
 ### 0-pre — Read prior approvals (FIRST, before passive detection)
 
@@ -78,7 +78,7 @@ Conflicting modifiers: the last occurrence wins (right-to-left scan), with a sof
 
 ### 0c — Approvals-persistence
 
-When the workspace AUQ fires, append (once the handoff skeleton exists — `phase-1-triage.md` step 1) an `approvals[]` entry to state.md: `category: review_workspace_setup`, `picked`, `at: <ISO-8601 UTC>`, `asked_in_phase: triage`, and `why` when `picked` alone would not say. The timestamp key is `at`, not `timestamp` — the SessionStart restore hook reads `.at`. Field names are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"T1.5 optional `approvals` array".
+When the workspace AUQ fires, append (once the handoff skeleton exists — `phase-1-triage.md` step 2) an `approvals[]` entry to state.md: `category: review_workspace_setup`, `picked`, `at: <ISO-8601 UTC>`, `asked_in_phase: triage`, and `why` when `picked` alone would not say. The timestamp key is `at`, not `timestamp` — the SessionStart restore hook reads `.at`. Field names are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"T1.5 optional `approvals` array".
 
 ### 0d — Execution of the workspace decision
 
@@ -205,7 +205,7 @@ Skip for files / diff range / branch — the `PEER-PR CONTEXT:` slot renders `no
 
 ## 6. Custom-instructions load
 
-Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: initial-load`.
+First action — apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: initial-load`.
 
 ---
 

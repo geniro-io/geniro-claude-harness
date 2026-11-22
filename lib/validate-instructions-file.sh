@@ -67,7 +67,7 @@ if [ -z "${_VIF_DEPS_LOADED:-}" ]; then
   readonly _VIF_NO_RULES_CONSTRAINTS_SCOPES="memory review-extra"
 
   # The legal (scope, phase) anchor pairs an `### After <phase>` subsection may
-  # name. Single home for the table is
+  # name. Single home for the catalogue is
   # skills/instructions/instructions-authoring-reference.md §5 — this is the
   # enforcement copy; a change there needs the matching change here (a
   # `tests/instructions/validate-instructions-file.sh` case pins the pairing).
@@ -194,7 +194,7 @@ validate_instructions_file() {
           *)
             if [ -z "$illegal_line" ]; then
               illegal_line="$lineno"
-              illegal_msg="'### After $phase' is not a legal anchor for scope '$scope' — see \${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md §5 for the per-skill anchor table"
+              illegal_msg="'### After $phase' is not a legal anchor for scope '$scope' — see \${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md §5 for the insertion-point catalogue"
             fi
             ;;
         esac
