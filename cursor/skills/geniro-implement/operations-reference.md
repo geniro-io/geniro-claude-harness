@@ -103,11 +103,11 @@ reviewed_file_hashes: []
 
 ## Memory I/O
 
-Which helper fires where. Step 0 workspace setup precedes every Phase 1 call in this table.
+Which helper fires where. The custom-instructions load runs first; Step 0 workspace setup precedes every other Phase 1 call below.
 
 | Phase | Calls |
 |---|---|
-| **Phase 1 entry** | `load-custom-instructions` (`MODE: refresh`) → `load-semantic` → the backend read under a `## Memory Backend` block → the `knowledge-retrieval-agent` + `codebase-explorer-agent` spawn pair (knowledge slot gated by the Step 7 store-empty check), read back from `<task-dir>/.kr-out.md` and `<task-dir>/.ce-out.md` → `query-learnings` |
+| **Phase 1 entry** | `load-custom-instructions` (`MODE: initial-load`, before Step 0) → `load-semantic` → the backend read under a `## Memory Backend` block → the `knowledge-retrieval-agent` + `codebase-explorer-agent` spawn pair (knowledge slot gated by the Step 7 store-empty check), read back from `<task-dir>/.kr-out.md` and `<task-dir>/.ce-out.md` → `query-learnings` |
 | **Phase 2** | Entry: `load-custom-instructions` (`MODE: refresh`) — every entry, including a resume, since Phase 1's load does not carry forward. Its other loads are the per-Edit `.claude/rules/*.md` JIT reads (cache scope: Phase 2) |
 | **Phase 3** | Entry: `load-custom-instructions` (`MODE: refresh`) + `load-custom-reviewers` (round 1 only). Fix loop: `query-learnings` per round. Ship sub-step: `emit-learning`, `update-semantic`, and the `non-resumable-actions[]` write via `atomic_state_append_list_item` |
 | **Any phase** | `resolve-conflicts` when the layers disagree — a soft conflict prints the notice and continues on the precedence-winning value; a hard conflict (a custom-instruction rule contradicts project reality) halts and asks. `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` |

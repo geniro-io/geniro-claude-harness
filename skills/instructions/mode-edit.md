@@ -12,9 +12,9 @@ Read `"$PRIMARY_ROOT"/.geniro/instructions/<scope>.md` (`review-extra/<slug>.md`
 
 - **Question:** "How would you like to edit `<scope>`?"
 - **Options:**
-- `Apply the change you described` — offered when the invocation already names a concrete change ("change the test command in my implement rules to `pnpm test:ci`"). Draft the edited body, show what changed, and gate the write on the same AUQ as the dialogue path.
+- `Apply the change you described` — offered when the invocation already names a concrete change ("change the test command in my implement rules to `pnpm test:ci`"). Draft the edited body, show what changed, and gate the write on the same AUQ as the dialogue path. A change that adds a rule, step or constraint goes through the placement question first; changing an existing line keeps its place.
 - `Open in editor (external)` — Print the resolved `"$PRIMARY_ROOT"/.geniro/instructions/<scope>.md` path; a user handed a worktree-local path edits a file no later run of this skill reads. Instruct them to edit externally and re-run `/geniro:instructions validate <scope>` when done. Exit.
-- `Rewrite via dialogue` — Interview-style AUQ sequence over `Add a Rule` / `Add a Constraint` / `Remove a Rule by number` / `Done`; add `Add an Additional Step` only when `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §5 grants the scope a legal anchor (a rules-only scope never reads a step). Chain past the question tool's option cap (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Cap-extension) rather than dropping an option. Apply edits to an in-memory copy; final write AUQ-gated.
+- `Rewrite via dialogue` — Interview-style AUQ sequence over `Add a Rule` / `Add a Constraint` / `Remove a Rule by number` / `Done`; add `Add an Additional Step` only when `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §5 grants the scope an anchor. Chain past the question tool's option cap (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Cap-extension) rather than dropping an option. Each added rule, step or constraint goes through the placement question (`phase-1-block-type-reference.md` §Placement question). Apply edits to an in-memory copy; final write AUQ-gated.
 - `Cancel`
 
 **The write.** Both editing paths land the approved body through `atomic_state_write` targeting the same `"$PRIMARY_ROOT"/.geniro/instructions/<scope>.md` Step 1 read, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`. Carry the caller-side optimistic mtime check T3 CRUD requires: `edit` is a read-modify-write over user-authored rules, so a file changed since Step 1 loses that change silently.
@@ -28,13 +28,13 @@ After editing a `review-extra` file, re-run the lint rule set against the edited
 Print (per `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-parse.md` Step 0.5: when the main repo checkout is not the current working tree, name the resolved absolute path instead and append the survives-this-worktree clause):
 
 ```
-Updated `.geniro/instructions/<scope>.md`. The new rules take effect the next time you run `/geniro:<scope>` (or any affected skill for global.md).
+Updated `.geniro/instructions/<scope>.md`. The new rules take effect the next time you run <the skills that read this file, from §5>; a run already in progress picks them up at a later phase.
 ```
 
 ### Body section invariants (post-edit)
 
 - `## Rules` section present (may be empty list; skip for `review-extra/<slug>.md` — uses `# Criteria` instead).
-- `## Additional Steps` section present (omitted for the rules-only scopes `code-style`, `review-extra/<slug>`, `review`, `resolve`, `debug`, `onboard`, `investigate`, `reflect`; for `implement`/`plan`/`refactor` it carries only that scope's legal anchors, §5; for `global` the section is optional and, when present, carries only the cross-skill `### After worktree-setup` event anchor).
+- `## Additional Steps` section present when `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §5 grants the scope an anchor (optional for `global`), absent otherwise; likewise `## Data Sources` / `## Verification Surface` only where §5 lists the scope.
 - `## Constraints` section present (may be empty list; skip for `review-extra/<slug>.md` — uses `# Criteria` instead).
 - Frontmatter (for `review-extra/<slug>.md`) parses YAML cleanly.
 

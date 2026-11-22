@@ -6,7 +6,7 @@ The empty `.geniro/instructions/<skill>.md` shapes `/geniro:setup` §3.3 writes 
 
 Write the scaffold first, then merge the block — merging into a file that does not exist yet drops the block silently. A file that already exists is never overwritten; the block is merged into its existing `## Additional Steps` section.
 
-The anchors below are the ones each skill actually fires. `/geniro:instructions validate` checks an anchor against the skill's phase enum, so an invented anchor name is a step that never runs.
+The anchors below are the ones each skill actually fires. `/geniro:instructions validate` checks an anchor against the legal-anchor list in `lib/validate-instructions-file.sh`, so an invented anchor name is a step that never runs.
 
 ## `plan.md` scaffold
 
@@ -16,6 +16,9 @@ The anchors below are the ones each skill actually fires. `/geniro:instructions 
 ## Rules
 
 ## Additional Steps
+
+### After explore
+<!-- Steps to run after research -->
 
 ### After user-approve
 <!-- Steps to run once the user has approved the spec -->
@@ -31,6 +34,9 @@ The anchors below are the ones each skill actually fires. `/geniro:instructions 
 ## Rules
 
 ## Additional Steps
+
+### After analyze
+<!-- Steps to run before coding -->
 
 ### After ship
 <!-- Steps to run once the change has shipped -->

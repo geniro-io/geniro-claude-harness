@@ -161,7 +161,7 @@ Reads and `AskUserQuestion` are open in every phase; writes are limited to those
 
 ## Memory I/O
 
-**Reads — all at Phase 1 entry, full tier:** custom instructions via `load-custom-instructions` (L4) · the project snapshot via `load_semantic` (L3) · past learnings via `query-learnings`, backend-override aware (L2). Plus one conditional external read at §1.4 — the matching tracker MCP (the tool named in `.geniro/workflow/<kind>.md`), only when `$ARGUMENTS` carries a tracker URL/ID.
+**Reads — full tier:** custom instructions via `load-custom-instructions` (L4) at Phase 0 entry, before its first question, and on every resume (§Task execution entry) · at Phase 1 entry, the project snapshot via `load_semantic` (L3) and past learnings via `query-learnings`, backend-override aware (L2). Plus one conditional external read at §1.4 — the matching tracker MCP (the tool named in `.geniro/workflow/<kind>.md`), only when `$ARGUMENTS` carries a tracker URL/ID.
 
 **Writes:** every state.md and spec.md mutation is T1.5 through the `atomic-state-write` helpers (§State persistence) — `atomic_state_set_field` for one frontmatter field, `atomic_state_append_section` / `atomic_state_append_list_item` for an entry, `atomic_state_write` for a whole file. The state.md body-section index — the base sections, the phase that owns each optional one, and the `approvals[]` entry every gate writes — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1. L2 emits are conditional, and each supplies its own `trust` at its emit site.
 
@@ -173,7 +173,7 @@ Reads and `AskUserQuestion` are open in every phase; writes are limited to those
 
 0. **Check for existing state.md.** List `<PLANNING_ROOT>/*/state.md` for a file matching the resolved task slug:
 - **No state.md** → fresh run. Proceed to Phase 0.
-- **state.md exists, phase in non-terminal set** → resume from `phase:` value, re-Reading the spine and that phase's steps file first (the Compaction paragraph above). The SessionStart hook re-injects task context, not the loop's steps.
+- **state.md exists, phase in non-terminal set** → resume from `phase:`: apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: plan`, `LOAD_TIER: pipeline`, `MODE: initial-load`, then re-Read the spine and that phase's steps file (the Compaction paragraph above). The SessionStart hook re-injects task context, not the loop's steps.
 - **state.md exists, phase in terminal set** (`done` / `aborted`) → task complete. Surface terminal state to user; if $ARGUMENTS carries a new topic, derive a new slug, fresh run.
 
 1. **Validate state.md if found** (§State persistence). On fail, open the recovery AUQ.

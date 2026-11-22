@@ -24,7 +24,7 @@ When `PRIMARY_ROOT` is not the current working tree: create/edit/delete success 
 
 | Mode | Aliases | Resolves to |
 |--------|---------|---------|
-| List | show, view, list, display, what instructions, current | `list` |
+| List | show, view, list, display, what instructions, current, where can I add instructions, insertion points, what can I customize | `list` |
 | Create | add, new, create, set up, start | `create` |
 | Edit | change, modify, update, edit, tweak, adjust | `edit` |
 | Validate | check, verify, validate, lint | `validate` |
@@ -42,11 +42,11 @@ If no arguments: default to `list`.
 
 ## Block-type routing
 
-A `create`/`edit` request implies WHICH block to author, not just which scope. On a resolved `create` or `edit`, Read `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-block-type-reference.md` here — before resolving the block type — and follow it, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`'s echo contract; a skipped Read silently defaults every request to `## Rules`. Resolve the block type from its intent → block table before continuing. `list`, `validate`, and `delete` author no block, so they skip that file.
+On a resolved `create` or `edit`, Read `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-block-type-reference.md` here — before resolving the block type — and follow it, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`'s echo contract; a skipped Read silently defaults every request to `## Rules`. Resolve the block type from its intent → block table, then ask its §Placement question, before continuing. `list`, `validate`, and `delete` author no block, so they skip that file.
 
 ## Ambiguity resolution
 
-Ask via `AskQuestion`, offering the candidates that survive from `SKILL.md` §Valid scope set — each option labelled with the scope name and described by what loads it. When the candidates outnumber the question tool's option cap, chain follow-up questions per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Cap-extension, rather than dropping a scope from the offer. **Cap retry at 3 rounds**; after the third, abort with "Could not narrow down — try `/geniro:instructions list` for the exact set."
+For `create`/`edit`, the placement question in `phase-1-block-type-reference.md` replaces this one. Otherwise ask via `AskQuestion`, offering the candidates that survive from `SKILL.md` §Valid scope set — each option labelled with the scope name and described by what loads it (`instructions-authoring-reference.md` §5). When the candidates outnumber the question tool's option cap, chain follow-up questions per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Cap-extension, rather than dropping a scope from the offer. **Cap retry at 3 rounds**; after the third, abort with "Could not narrow down — try `/geniro:instructions list` for the exact set."
 
 ## Scope validation
 

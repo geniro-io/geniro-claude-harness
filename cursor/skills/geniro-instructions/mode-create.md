@@ -31,14 +31,14 @@ When the request does not already name a concrete rule, read enough of the proje
 
 ### Step 4 — Scope-specific scaffold + interview
 
-Each scope gets a **scope-specific scaffold** of section headings only — every bullet counts as a real rule, so bullets come from the user or this interview. The four scaffolds (`code-style` / `implement` / `global` / `memory`) plus their stub-inclusion notes live in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §1 — render the matching scaffold first, always.
+Each scope gets a **scope-specific scaffold** of section headings only — every bullet counts as a real rule, so bullets come from the user or this interview. The scaffold rule, the stubs and the `memory` scaffold live in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §1 — render the matching scaffold first, always.
 
-The interview is for requests that arrive vague. When the invocation already names an actionable rule ("add a rule that we run `pnpm test` before shipping"), place it in the scaffold under the block type Phase 1 resolved from `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-block-type-reference.md` §Block-type detection and go straight to Step 5 — re-interviewing a user who already answered spends three questions to reach the line they handed over. Otherwise use `AskQuestion`:
+The interview is for requests that arrive vague. When the invocation already names an actionable rule ("add a rule that we run `pnpm test` before shipping"), place it in the scaffold at the insertion point the user picks in the placement question (`${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-block-type-reference.md` §Placement question) and go straight to Step 5 — re-interviewing a user who already answered spends three questions to reach the line they handed over. Otherwise use `AskQuestion` (about content):
 
 - **Question:** "Add what kind of rules?"
 - **Options (scope-tailored):** Documentation / Quality gates / Workflow steps / Free-form (Other path)
 
-Capture 1-2 follow-up answers via additional AUQs. Convert vague user input into a specific criterion the model can weigh, per the rule-writing principles in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §2 — name the command or path, and give the reason where the rule is one the model would otherwise talk itself out of (e.g. "make sure we test" → "Cover each new public function with a test; run `npm test` before shipping — CI reviews the last green run, not the working tree").
+Capture 1-2 follow-up answers via additional AUQs. Convert vague user input into a specific criterion the model can weigh, per the rule-writing principles in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §2 — name the command or path, and give the reason where the rule is one the model would otherwise talk itself out of (e.g. "make sure we test" → "Cover each new public function with a test; run `npm test` before shipping — CI reviews the last green run, not the working tree"). Then ask the placement question for each instruction the interview produced.
 
 ### Step 5 — Generate the file
 
