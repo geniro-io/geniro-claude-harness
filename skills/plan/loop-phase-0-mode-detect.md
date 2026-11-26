@@ -10,6 +10,7 @@ State.md `phase: mode-detect` during this phase.
 
 **Opt-in flag detection.** Strip every recognized flag token from `$ARGUMENTS` before mode detection. state.md does not exist until §0.3: carry each detected flag into its initial frontmatter.
 
+- **`--subagent-model <tier>`** → `subagent-model: <tier>`, announced once; values and reach in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`.
 - **`--artifact`** → `artifact_mode: true` + `artifact_status: pending`. Turns on the live visual plan artifact (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`) and IS the opt-in, so §0.2.5 skips its question. Absent: the §0.2.5 question decides whether artifact mode turns on.
 
 **Launch-modifier detection (pre-fills `launch_config`).** Semantic-parse `$ARGUMENTS` for the `/geniro:plan` launch modifiers cataloged in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md` — workspace, ship (`don't push` / `no push` / `commit only` → commit-no-push, `draft only` → draft-pr, `ready-for-review`, `stop after review` → stop-after-review) and `freshness:merge` / `freshness:rebase` / `freshness:skip` (colon form only — bare `merge` / `skip` are too ambiguous inside a free-text topic). Strip the matched tokens before mode detection and carry the set forward: `freshness:` feeds §1.1b, the full set feeds §8.3.5. With none, both run interactively.

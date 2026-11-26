@@ -32,6 +32,7 @@ non-resumable-actions: []
 approvals: []
 task_slug: <slug>
 mode: <IDEA|DESIGN_DOC>
+subagent-model: <tier>           # optional, present only with --subagent-model
 artifact_mode: true              # optional, present only when the user opted into the visual artifact (Phase 0 question or --artifact)
 artifact_status: pending|live|unavailable  # optional, present only in artifact mode — publish lifecycle state
 artifact_url: "<url>"            # optional, present only in artifact mode — Phase 0 writes it empty ("") alongside artifact_mode/artifact_status; the first publish fills it in
