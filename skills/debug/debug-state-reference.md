@@ -69,6 +69,7 @@ geniro_schema_version: m7-v1
 mode: <scientific|adversarial>
 task_slug: <slug>
 worktree: <abs-path>
+subagent-model: <tier>   # only with --subagent-model
 ---
 ```
 

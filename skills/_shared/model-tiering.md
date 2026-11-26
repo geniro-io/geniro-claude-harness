@@ -12,7 +12,7 @@ Single source of truth for the model a spawned subagent runs on, from any skill 
 
 ## Cost classes
 
-Every spawn runs at one class. A site states its class in the sentence that describes the spawn and never names a model, so one skill file reads the same on every host; a site that states none is **session**. In a literal `Agent(...)` block, drop `model=` and put the class in a trailing comment (`# cost class: light (mid) — model-tiering.md §Cost classes`).
+Every spawn runs at one class. A site states its class in the sentence that describes the spawn and never names a model, so one skill file reads the same on every host; a site that states none is **session**. In a literal `Agent(...)` block, drop `model=` (or carry `model="{{subagent-model}}"`, kept only when the run sets `--subagent-model`) and put the class in a trailing comment (`# cost class: light (mid) — model-tiering.md §Cost classes`).
 
 - **session** — the default. Pass no model: the subagent runs on the model the user chose for the session. It covers anything that decides what the orchestrator acts on — what the code does, whether a finding is real, which approach to take, what a diff should contain. The user chose the session model knowing its cost, and a decision's quality scales with the model that makes it. The Agent tool's `model=` enum is `sonnet|opus|haiku|fable`, so `model="inherit"` fails input validation ("Invalid tool parameters"); session is expressed by OMITTING the argument, and the host then resolves the orchestrator's model.
 - **light** — a spawn that meets all four: (1) it applies a decision already made, or gathers evidence the orchestrator re-checks; (2) its output can be checked without redoing the work; (3) a wrong result costs one re-spawn; (4) its size is known before spawning. A light class never runs above the session: when the session model is at or below the class's family — always on Cursor (§Runtime resolution) — spawn as session and omit the model.
@@ -60,11 +60,9 @@ Agent frontmatter never pins a model: every `agents/*.md` declares `model: inher
 
 ## `--subagent-model` — user-elected run-wide override
 
-A run-scoped flag on `/geniro:implement` and `/geniro:review` (values `sonnet` / `opus` / `haiku` / `fable`) naming the model the user wants this run's spawns to reason at. Announce it once at run start (name the model) so it stays visible for the rest of the session.
+A run-scoped flag on `/geniro:implement`, `/geniro:review`, `/geniro:plan`, `/geniro:investigate` and `/geniro:debug` (values `sonnet` / `opus` / `haiku` / `fable`) naming the model the user wants this run's spawns to reason at. Announce it once at run start; the run persists it as state.md `subagent-model:`, which every spawn site reads.
 
-**It pins session spawns and caps light ones.** A session spawn takes the value verbatim — reasoning depth is what the flag buys. A light spawn treats it as a cap: a *stronger* value never raises it, because `--subagent-model opus` asks for deeper judgment and putting Opus on a test re-run answers a question nobody asked; a *cheaper* value lowers it, because "spend less everywhere" is exactly what that election says. Where the named model cannot be placed against the class's own — `fable` has no settled position among the light models — leave that spawn at its class and say so once.
-
-The flag is the user's own declaration for one run, like a custom reviewer's declared `model:` — not the plugin choosing a cheaper model on their behalf (forbidden below).
+**It pins session spawns and caps light ones.** A session spawn takes the value verbatim — reasoning depth is what the flag buys. A light spawn treats it as a cap: a *stronger* value never raises it, a *cheaper* one lowers it (Anti-rationalization, last row). Where the named model cannot be placed against the class's own — `fable` has no settled position among the light models — leave that spawn at its class and say so once. The flag is the user's own election, not the plugin choosing for them (Anti-rationalization, first row).
 
 **Expressible values only.** The value must be one the host's spawn argument can carry — on Claude Code the closed `sonnet|opus|haiku|fable` enum from §Cost classes, on Cursor a model id its Task tool lists, on Codex none. A run given any other value does not drop it silently — it says so and names the routes that still work:
 
@@ -72,7 +70,7 @@ The flag is the user's own declaration for one run, like a custom reviewer's dec
 - **Cursor:** the session model, which propagates to every subagent, is the reliable lever; as an explicit escape hatch, spawn via `cursor-agent -p --model <id> --output-format text` from Bash instead of the Task tool. The hatch bypasses the plugin's agent registry and the `Context loaded:` reporting contract, so the caller owns output parsing and failure handling.
 - **Codex:** `[agents] default_subagent_model` in `~/.codex/config.toml`, a session-wide default that must be set before the session starts, so a mid-run request can only be relayed to the user.
 
-**`effort`** (`low` / `medium` / `high` / `xhigh` / `max`, a Claude Code agent-frontmatter field; Codex `reasoning_effort`) is a second cost lever independent of the model — the two compose rather than substitute. Both are part of the prompt-cache key, so uniformity matters within a parallel batch of one agent (§Cost classes), not across the run.
+**`effort`** (`low` / `medium` / `high` / `xhigh` / `max`, a Claude Code agent-frontmatter field; Codex `reasoning_effort`) is a second cost lever independent of the model — the two compose rather than substitute.
 
 ## Hard rules
 

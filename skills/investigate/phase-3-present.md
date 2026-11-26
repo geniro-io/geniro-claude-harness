@@ -36,7 +36,7 @@ Copy the template for the question type (How / Why / What-if / Compare / Risk) f
 
 ### Step 2: Fresh verifier agent
 
-Spawn a fresh verifier agent for the draft; it must NOT have seen the research prompts and spawns as `general-purpose` per §Subagent spawn contract (OMIT `model=`). Spawn template (acceptance criteria, pre-inlined files, 6-item checklist, output schema): `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3.
+Spawn a fresh verifier agent for the draft; it must NOT have seen the research prompts and spawns as `general-purpose` per §Subagent spawn contract (`model=` from `subagent-model:` when set, else omitted). Spawn template (acceptance criteria, pre-inlined files, 6-item checklist, output schema): `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3.
 
 #### Process review results:
 - **Blockers**: Fix the answer (orchestrator corrects directly — these are text edits, not code).

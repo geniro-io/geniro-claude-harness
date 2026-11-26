@@ -4,7 +4,7 @@ description: "Use when turning a vague idea or feature request into an approved 
 context: main
 model: inherit
 allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite]
-argument-hint: "<topic-string-or-design-doc-path> [--artifact]"
+argument-hint: "<topic-string-or-design-doc-path> [--artifact] [--subagent-model <tier>]"
 ---
 
 # /geniro:plan — spec-first planning
@@ -155,7 +155,7 @@ Reads and `AskUserQuestion` are open in every phase; writes are limited to those
 | 8 User approve | state.md; spec.md rewrite; Bash for §8.4's git and validator calls; `Artifact` + scratchpad `Write`† |
 | 9 Handoff | state.md terminal write; removal of this run's own scratch |
 
-†Artifact mode only — call sites in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-artifact-call-sites.md`; `Artifact` stays out of `allowed-tools` so the first publish raises the one-time `claude.ai` consent prompt. Spawns are `session` unless a site names a light class (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes); Phase 3 grill lookups and Phase 2 UI description (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1) are **light (mid)**.
+†Artifact mode only — call sites in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-artifact-call-sites.md`; `Artifact` stays out of `allowed-tools` so the first publish raises the one-time `claude.ai` consent prompt. Spawns are `session` unless a site names a light class (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes); Phase 3 grill lookups and Phase 2 UI description (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1) are **light (mid)**; state.md `subagent-model:` pins session spawns and caps these (`plan-loop.md` §Spawn contract).
 
 ---
 

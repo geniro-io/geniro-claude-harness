@@ -24,15 +24,15 @@ The Codebase Analyst spawn IS `codebase-research-agent` per `${CLAUDE_PLUGIN_ROO
 
 ### Agent A: Codebase Analyst (when not skipped by Phase 1 Step 2)
 
-Read-only research agent — the plugin `codebase-research-agent` (tools: Read / Glob / Grep / Bash; writes its findings report to OUTPUT_PATH in a shell call, no writes or edits elsewhere). Produces a `Files examined` + `Findings` (file:line + verified snippet per Evidence Standard kind 2 + Relevance) + `Gaps` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §2 (Agent A).
+Session (`model=` from `subagent-model:` when set) read-only research agent — the plugin `codebase-research-agent` (tools: Read / Glob / Grep / Bash; writes its findings report to OUTPUT_PATH in a shell call, no writes or edits elsewhere). Produces a `Files examined` + `Findings` (file:line + verified snippet per Evidence Standard kind 2 + Relevance) + `Gaps` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §2 (Agent A).
 
 ### Agent B: Git Historian (for How current/forward-looking, Why, Risk, What-if)
 
-Read-only research agent, spawned as **light (smallest)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes — restricted to a strict allowlist of git read-verbs (`log`, `blame`, `show`, `diff`); no file writes or edits. Produces a chronological `Timeline` + `Findings` (commit-hash + message excerpt per Evidence Standard kind 1 + Relevance) + `Patterns` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §2 (Agent B).
+Read-only research agent, spawned as **light (smallest)**, capped by `subagent-model:`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes — restricted to a strict allowlist of git read-verbs (`log`, `blame`, `show`, `diff`); no file writes or edits. Produces a chronological `Timeline` + `Findings` (commit-hash + message excerpt per Evidence Standard kind 1 + Relevance) + `Patterns` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §2 (Agent B).
 
 ### Agent C: Internet Researcher (for How forward-looking, Why, What-if, Compare, Risk)
 
-WebSearch+WebFetch agent, spawned as **light (mid)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes — read-only, no local-codebase Bash and no file writes or edits. Produces a `Sources consulted` + `Findings` (URL + Reliability label per Evidence Standard kind 6) + `Consensus` / `Disagreements` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §2 (Agent C).
+WebSearch+WebFetch agent, spawned as **light (mid)**, capped by `subagent-model:`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes — read-only, no local-codebase Bash and no file writes or edits. Produces a `Sources consulted` + `Findings` (URL + Reliability label per Evidence Standard kind 6) + `Consensus` / `Disagreements` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §2 (Agent C).
 
 ### Step 2: Verify — orchestrator re-checks each load-bearing claim
 

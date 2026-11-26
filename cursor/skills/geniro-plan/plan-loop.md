@@ -77,9 +77,9 @@ Before any change to spec.md or a `milestone-N.md`, read the file's current cont
 
 ## Spawn contract
 
-Cross-phase, binding every subagent spawn in the loop — the Phase 1 research spawns, the Phase 3 on-demand research spawns, and the Phase 4 design generators and stress-test critics.
+Cross-phase, binding every subagent spawn in the loop.
 
-Spawn custom plugin agents per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (host-dependent ladder, empty-result fallback; cache the resolved form for the session). Spawns are `session` (OMIT `model=`) unless a site names a light class (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes).
+Spawn custom plugin agents per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (host-dependent ladder, empty-result fallback; cache the resolved form for the session). Spawns are `session` unless a site names a light class: pass state.md `subagent-model:` as `model=` when set, else OMIT `model=`; a light class takes it only as a cap (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes, §`--subagent-model`).
 
 ---
 

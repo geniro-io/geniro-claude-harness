@@ -26,7 +26,7 @@ The caller owns the trigger: a predicted affected file matching the §UI-file de
 
 ### Step 1: Spawn the UI description agent
 
-Spawn a general-purpose subagent for the description as **light (mid)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes: the spec already decided what the UI does, and this spawn only transforms it into a structured description. If the spawn returns an empty result, apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. Satisfy the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at this spawn site: a spawn cannot withhold tools, so restate the read/transform-only constraint inside the prompt body per that file's "Prohibited tools list".
+Spawn a general-purpose subagent for the description as **light (mid)**, capped by the run's `--subagent-model`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes: the spec already decided what the UI does, and this spawn only transforms it into a structured description. If the spawn returns an empty result, apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. Satisfy the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at this spawn site: a spawn cannot withhold tools, so restate the read/transform-only constraint inside the prompt body per that file's "Prohibited tools list".
 
 ```
 Agent(prompt="""

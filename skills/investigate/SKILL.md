@@ -4,7 +4,7 @@ description: "Use when a deep codebase question needs an evidence-backed answer 
 context: main
 model: inherit
 allowed-tools: [Read, Bash, Glob, Grep, Agent, AskUserQuestion, WebSearch, WebFetch]
-argument-hint: "[question about the codebase, e.g. 'how does auth work?', 'why was X pattern chosen?']"
+argument-hint: "[question about the codebase, e.g. 'how does auth work?', 'why was X pattern chosen?'] [--subagent-model <tier>]"
 ---
 
 # Investigate: deep codebase Q&A
@@ -80,11 +80,11 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 ## Subagent model tiering
 
-Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes, spawns are `session` unless a site names a light class: Git Historian **light (smallest)**, Internet Researcher **light (mid)**. Codebase Analyst, External-codebase researcher, and fresh verifier decide the answer and stay `session`.
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes, spawns are `session` unless a site names a light class: Git Historian **light (smallest)**, Internet Researcher **light (mid)**. Codebase Analyst, External-codebase researcher, and fresh verifier decide the answer and stay `session`. With state.md `subagent-model:` set, session spawns pass it as `model=` and light ones take it as a cap (`model-tiering.md` §`--subagent-model`).
 
 ## Subagent spawn contract
 
-Every `Agent(...)` spawn in this skill — Phase 2 Step 1 research agents (Codebase / Git / Internet / External-codebase), Phase 3 Step 2 fresh verifier agent — satisfies every pre-inlined field in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`, because a spawn missing a field makes the subagent re-discover scope from scratch and drift. Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for runtime degradation when invoking plugin-defined agents: the plugin-defined `codebase-research-agent` (Phase 2 Codebase Analyst, plus codebase-locator side queries during Phase 3 synthesis) is spawned via this ladder; every other spawn is general-purpose.
+Every `Agent(...)` spawn in this skill — Phase 2 Step 1 research agents (Codebase / Git / Internet / External-codebase), Phase 3 Step 2 fresh verifier agent — satisfies every pre-inlined field in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`. Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for runtime degradation when invoking plugin-defined agents: the plugin-defined `codebase-research-agent` (Phase 2 Codebase Analyst, plus codebase-locator side queries during Phase 3 synthesis) is spawned via this ladder; every other spawn is general-purpose.
 
 ## Evidence Standard
 

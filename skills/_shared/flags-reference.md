@@ -1,6 +1,6 @@
 # Flags & presets — cross-skill catalog
 
-The single catalog of every flag and modifier `/geniro:plan`, `/geniro:implement`, and `/geniro:review` accept. Two kinds: most remove routine setup friction by answering a question in advance; the rest change what the run does — its context, or how many agents it spawns — and ask nothing either way. Neither reaches a safety gate: a flag never pre-authorizes one.
+The single catalog of every flag and modifier `/geniro:plan`, `/geniro:implement`, and `/geniro:review` accept; `/geniro:investigate` and `/geniro:debug` also take `--subagent-model`. Two kinds: most remove routine setup friction by answering a question in advance; the rest change what the run does — its context, or how many agents it spawns — and ask nothing either way. Neither reaches a safety gate: a flag never pre-authorizes one.
 
 ## Contents
 
@@ -16,11 +16,12 @@ Each row names a flag or modifier, the values it accepts, what it sets, and how 
 
 ## /geniro:plan
 
-`argument-hint: "<topic-string-or-design-doc-path> [--artifact]"`
+`argument-hint: "<topic-string-or-design-doc-path> [--artifact] [--subagent-model <tier>]"`
 
 | Flag / modifier | Values | What it sets | How it changes the questions |
 |---|---|---|---|
 | `--artifact` | present / absent | Turns on the live, auto-updating visual plan artifact published to a private page as the plan develops. | The artifact opt-in question. |
+| `--subagent-model` | as in `/geniro:implement` | Same as the `/geniro:implement` row. | No question. |
 | `new-branch` / `current-branch` / `worktree` / `no-worktree` (`here`) | one value | Pre-fills the spec's `launch_config` workspace setting so `/geniro:implement` runs hands-free without asking where to land its edits (`no-worktree` and `here` both map to the `here` enum value). | `/implement`'s workspace setup question (deferred — applied when `/implement` consumes the spec). |
 | `don't push` / `no push` / `commit only` / `draft only` / `ready-for-review` / `stop after review` | one value | Pre-fills the spec's `launch_config` ship setting (commit-no-push / draft PR / ready-for-review PR / stop before commit). | `/implement`'s ship-mode question (deferred). |
 | `freshness:merge` / `freshness:rebase` / `freshness:skip` | one value (colon form only) | Pre-sets the strategy for a branch behind the default branch. Feeds both `/plan`'s own Phase 1 branch-freshness offer and the spec's `launch_config`. | `/plan`'s Phase 1 branch-freshness offer AND `/implement`'s branch-freshness question (deferred). |
@@ -39,11 +40,11 @@ The launch modifiers above pre-fill the spec's `launch_config` block per `${CLAU
 | `draft only` / `draft PR` / `open draft` | one value | Push and open a draft PR. | The ship-mode question. |
 | `ready PR` / `ready-for-review` / `non-draft PR` | one value | Push and open a PR ready for review. | The ship-mode question. |
 | `stop after review` | present / absent | Exit before any commit; surface clean review status as the deliverable. | The ship-mode question. |
-| `--subagent-model` | `sonnet` / `opus` / `haiku` / `fable` | Pins every session spawn in this run to the named model and caps light spawns — a stronger model never raises them, a cheaper one lowers them. Announced once at run start. A value the host cannot carry names that host's working route instead of applying silently — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. | No question — an explicit run-wide election, not a pre-set answer. |
+| `--subagent-model` | `sonnet` / `opus` / `haiku` / `fable` | Pins every session spawn in this run to the named model and caps light spawns, announced once (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`). | No question — an explicit run-wide election, not a pre-set answer. |
 
 A bare `open PR` / `with PR` (no draft-vs-ready qualifier) does NOT skip the ship-mode question — it routes through the gate so the safe draft default stays visible.
 
-**Spec `launch_config` block (spec-driven runs).** When `/geniro:plan` wrote a `launch_config` block into the spec, `/implement` reads it at Step 0 and applies workspace / branch_freshness / ship_mode (and, when the spec has a linked tracker ticket, tracker_status) at once, skipping each corresponding setup question. The block is the cross-skill contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`. An inline-task run (no spec) has no block, so the setup questions fire interactively.
+**Spec `launch_config` block (spec-driven runs).** When `/geniro:plan` wrote a `launch_config` block into the spec, `/implement` reads it at Step 0 and applies workspace / branch_freshness / ship_mode (and, when the spec has a linked tracker ticket, tracker_status) at once, skipping each corresponding setup question. The block is the cross-skill contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`.
 
 ## /geniro:review
 
@@ -56,7 +57,7 @@ A bare `open PR` / `with PR` (no draft-vs-ready qualifier) does NOT skip the shi
 | `--brief` | present / absent | Pre-answers the opt-in for the optional companion brief (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md`); where Artifact publishing is available, the medium (Artifact vs file) still asks — where it isn't, only the file medium exists, so it's persisted directly with no question. | The brief question, the last step of Phase 1 — skipped entirely on a host without Artifact support. |
 | `--no-brief` | present / absent | Skips the brief offer entirely — no opt-in question, no medium question. | The brief question, the last step of Phase 1. |
 | `worktree` / `no-worktree` / `here` / `current-branch` / `new-branch` | one value | Forces the workspace path the review inspects. | The Step 0 workspace question. |
-| `--subagent-model` | `sonnet` / `opus` / `haiku` / `fable` | Pins every session spawn in this run to the named model and caps light spawns — a stronger model never raises them, a cheaper one lowers them. Announced once at run start. A value the host cannot carry names that host's working route instead of applying silently — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. | No question — an explicit run-wide election, not a pre-set answer. |
+| `--subagent-model` | as in `/geniro:implement` | Same as the `/geniro:implement` row. | No question. |
 | `--with` | `optimizations` / `pr-metadata`, comma-separated | Adds those opt-in reviewer dimensions to the run. | No question. |
 
 ## Non-suppressible safety gates

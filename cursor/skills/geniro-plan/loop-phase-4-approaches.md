@@ -41,7 +41,7 @@ Effort-tier-scaled (tier already detected in Phase 1.2 — the critic cost lands
 | Small | Skipped — too narrow to warrant a critic; if Phase 4 produced ≥2 genuinely competing approaches, treat as Medium (1 comparative critic) |
 | Medium, Big | 1 `codebase-research-agent` — stress-tests all approaches comparatively in one spawn |
 
-Spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research, once, per the spine §Spawn contract (OMIT `model=`). The orchestrator MAY draft the §4.3 approach render during the wait, splicing each approach's `Stress-test:` verdict in on return; the critic returns before §4.3. Slots:
+Spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research, once, per the spine §Spawn contract (`model=` from `subagent-model:` when set, else omitted). The orchestrator MAY draft the §4.3 approach render during the wait, splicing each approach's `Stress-test:` verdict in on return; the critic returns before §4.3. Slots:
 
 - `RESEARCH_QUESTION`: "Stress-test each approach in the inlined list against this codebase: find blockers, hidden coupling, convention conflicts, and prior rejected attempts that would make it fail or cost more than its stated effort estimate. Work to disprove the approach's feasibility, not to confirm it — the approach text reads plausible because its author believed it, and plausibility is not evidence. A no-risks verdict is credible only when you list the surfaces you checked and found clean."
 - `DELIVERABLE_SHAPE`: `"table of [{approach, risk, evidence file:line, severity: blocking|major|minor}], plus one 'Checked:' line per approach listing the files/surfaces examined — required even, and especially, when no risks were found"`
